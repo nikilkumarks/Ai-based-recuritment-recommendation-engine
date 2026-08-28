@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: prj385-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-recs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-recs}
+      POSTGRES_DB: ${POSTGRES_DB:-recs}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recs} -d ${POSTGRES_DB:-recs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: prj385-backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-recs}:${POSTGRES_PASSWORD:-recs}@postgres:5432/${POSTGRES_DB:-recs}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-development-only-min-32b}
+      RANKER_IMPL: ${RANKER_IMPL:-baseline}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_MODEL_VERSION: ${EMBEDDING_MODEL_VERSION:-all-minilm-l6-v2-v1}
+      EMBEDDING_MODEL_REVISION: ${EMBEDDING_MODEL_REVISION:-}
+      EMBEDDING_TEXT_VERSION: ${EMBEDDING_TEXT_VERSION:-embedding-text-v1}
+      EMBEDDING_BACKEND: ${EMBEDDING_BACKEND:-sentence_transformers}
+      HF_HOME: /app/.cache/huggingface
+      BLOB_ROOT: /app/storage
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-14}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      MAX_RESUME_BYTES: ${MAX_RESUME_BYTES:-5242880}
+      DOCUMENT_PARSER_VERSION: ${DOCUMENT_PARSER_VERSION:-document-parser-v1}
+      NLP_PIPELINE_VERSION: ${NLP_PIPELINE_VERSION:-nlp-v1}
+      ONTOLOGY_DEFAULT_VERSION: ${ONTOLOGY_DEFAULT_VERSION:-seed-0.1}
+      ONTOLOGY_FUZZY_THRESHOLD: ${ONTOLOGY_FUZZY_THRESHOLD:-0.92}
+      ONTOLOGY_MAX_DEPTH: ${ONTOLOGY_MAX_DEPTH:-4}
+      FEATURE_SCHEMA_VERSION: ${FEATURE_SCHEMA_VERSION:-feature-schema-v1}
+      MATCH_WEIGHT_SET_VERSION: ${MATCH_WEIGHT_SET_VERSION:-baseline-weights-v1}
+      MATCH_WEIGHT_REQUIRED: ${MATCH_WEIGHT_REQUIRED:-0.60}
+      MATCH_WEIGHT_PREFERRED: ${MATCH_WEIGHT_PREFERRED:-0.10}
+      MATCH_WEIGHT_SEMANTIC: ${MATCH_WEIGHT_SEMANTIC:-0.15}
+      MATCH_WEIGHT_EXPERIENCE: ${MATCH_WEIGHT_EXPERIENCE:-0.10}
+      MATCH_WEIGHT_EDUCATION_PROJECT: ${MATCH_WEIGHT_EDUCATION_PROJECT:-0.05}
+      PROJECT_EVIDENCE_COSINE_THRESHOLD: ${PROJECT_EVIDENCE_COSINE_THRESHOLD:-0.45}
+      EXPERIENCE_EVIDENCE_COSINE_THRESHOLD: ${EXPERIENCE_EVIDENCE_COSINE_THRESHOLD:-0.45}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./storage:/app/storage
+      - huggingface_cache:/app/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: prj385-frontend
+    command: sh -c "if [ ! -x node_modules/.bin/next ]; then npm install; fi; npm run dev -- --hostname 0.0.0.0 --port 3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  frontend_node_modules:
+  huggingface_cache:
