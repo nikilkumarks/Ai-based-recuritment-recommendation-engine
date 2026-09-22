@@ -1,4 +1,4 @@
-﻿"""Baseline matching orchestrator. No XGBoost, ranking, or potential scoring."""
+﻿"""Matching orchestrator. Baseline composer plus optional trained shortlist score."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models import Candidate, CandidateProfile, CandidateSkill, Embedding, Job, JobRequirement, User
 from app.models.enums import UserRole
+from app.modules.applications.repository import ApplicationsRepository
 from app.modules.authorization.service import AuthorizationService
 from app.modules.embeddings.compatibility import (
     EncoderIdentity,
@@ -23,10 +24,11 @@ from app.modules.embeddings.hashing import content_hash
 from app.modules.embeddings.similarity import cosine_similarity
 from app.modules.embeddings.text_builder import build_job_text, build_profile_text
 from app.modules.embeddings.version import resolved_text_version
+from app.modules.features.runtime import score_features
 from app.modules.matching.composer import compose
 from app.modules.matching.constants import (
-    FEATURE_SCHEMA_VERSION,
     SCORING_MODE_BASELINE,
+    SCORING_MODE_TRAINED,
     SNAPSHOT_FEATURE_SCHEMA_VERSION,
 )
 from app.modules.matching.evidence import (
@@ -71,6 +73,7 @@ class MatchingService:
         self.db = db
         self.repo = MatchingRepository(db)
         self.authz = AuthorizationService(db)
+        self.decisions = ApplicationsRepository(db)
         self.ontology = OntologyService(db)
         self.ontology_repo = OntologyRepository(db)
         self._index: OntologyIndex | None = None
@@ -98,13 +101,30 @@ class MatchingService:
                     missing_skills=result.missing_skills,
                     partial_skills=result.partial_skills,
                     related_skills=result.related_skills,
-                    scoring_mode="baseline",
-                    model_version=None,
+                    scoring_mode=result.scoring_mode,
+                    model_version=result.model_version,
+                    model_relevance_score=result.model_relevance_score,
                     semantic_similarity_available=result.semantic_similarity_available,
+                    sort_note=(
+                        "trained_model_relevance_desc"
+                        if result.scoring_mode == SCORING_MODE_TRAINED
+                        else "baseline_current_match_desc"
+                    ),
                 )
             )
-        items.sort(key=lambda row: row.current_match, reverse=True)
-        return CandidateJobListResponse(items=items, scoring_mode="baseline")
+        trained = all(row.scoring_mode == SCORING_MODE_TRAINED for row in items) and bool(items)
+        items.sort(
+            key=lambda row: _list_sort_key(row.scoring_mode, row.model_relevance_score, row.current_match)
+        )
+        return CandidateJobListResponse(
+            items=items,
+            scoring_mode=SCORING_MODE_TRAINED if trained else SCORING_MODE_BASELINE,
+            sort=(
+                "model_relevance_score DESC (trained shortlist score; baseline current_match retained)"
+                if trained
+                else "current_match DESC (baseline sorting, not a trained ranker)"
+            ),
+        )
 
     def match_detail(self, *, user: User, candidate_id: uuid.UUID, job_id: uuid.UUID) -> MatchResult:
         self._require_match_detail_access(user, candidate_id, job_id)
@@ -123,6 +143,7 @@ class MatchingService:
         if self.repo.latest_confirmed_requirement(loaded) is None:
             raise ConflictError("This job has no confirmed requirements.")
         items: list[JobCandidateMatchSummary] = []
+        scored: list[tuple] = []
         for candidate in self.repo.list_candidates():
             if not self.authz.can_recruiter_view_candidate(user, candidate):
                 continue
@@ -131,6 +152,10 @@ class MatchingService:
             context = self._load_context(candidate.id)
             result = self._score_pair(context, loaded, persist=True, include_career_paths=False)
             identifier = candidate.user.email if candidate.user is not None else str(candidate.id)
+            scored.append((candidate, result, identifier))
+        latest = self.decisions.latest_for_pairs(job.id, [row[0].id for row in scored])
+        for candidate, result, identifier in scored:
+            current = latest.get(candidate.id)
             items.append(
                 JobCandidateMatchSummary(
                     candidate_id=candidate.id,
@@ -141,15 +166,31 @@ class MatchingService:
                     potential_status=result.potential_status,
                     required_skill_coverage=result.required_skill_coverage,
                     missing_skills=result.missing_skills,
-                    scoring_mode="baseline",
-                    model_version=None,
+                    related_skills=result.related_skills,
+                    scoring_mode=result.scoring_mode,
+                    model_version=result.model_version,
+                    model_relevance_score=result.model_relevance_score,
+                    current_decision=current.action if current is not None else None,
+                    sort_note=(
+                        "trained_model_relevance_desc"
+                        if result.scoring_mode == SCORING_MODE_TRAINED
+                        else "baseline_current_match_desc"
+                    ),
                 )
             )
-        items.sort(key=lambda row: row.current_match, reverse=True)
+        trained = all(row.scoring_mode == SCORING_MODE_TRAINED for row in items) and bool(items)
+        items.sort(
+            key=lambda row: _list_sort_key(row.scoring_mode, row.model_relevance_score, row.current_match)
+        )
         return JobCandidateListResponse(
             job_id=job.id,
             items=items,
-            scoring_mode="baseline",
+            scoring_mode=SCORING_MODE_TRAINED if trained else SCORING_MODE_BASELINE,
+            sort=(
+                "model_relevance_score DESC (trained shortlist score; baseline current_match retained)"
+                if trained
+                else "current_match DESC (baseline sorting, not a trained ranker)"
+            ),
         )
 
     def simulate_add_skill(
@@ -215,7 +256,7 @@ class MatchingService:
             ],
             affected_gaps=[
                 item.model_dump(mode="json")
-                for item in simulated.gaps
+                for item in baseline.gaps + simulated.gaps
                 if item.skill_id == skill.id
             ],
             scoring_mode="baseline",
@@ -259,12 +300,14 @@ class MatchingService:
             raise ConflictError("Confirm the candidate profile before matching.")
         index = self._ontology_index()
         active = self.ontology_repo.active_version()
+        potential_depth = get_settings().potential_max_graph_distance
         return MatchContext(
             candidate_id=candidate_id,
             profile=profile,
             candidate_skills=_profile_skills(profile),
             index=index,
             graph=index.graph(get_settings().ontology_max_depth),
+            potential_graph=index.graph(potential_depth),
             ontology_version=index.version,
             ontology_version_id=active.id if active is not None else None,
             encoder_identity=self._identity(),
@@ -283,7 +326,14 @@ class MatchingService:
             self._encoder_identity = get_encoder().identity(resolved_text_version())
         return self._encoder_identity
 
-    def _score_pair(self, context: MatchContext, job: Job, *, persist: bool) -> MatchResult:
+    def _score_pair(
+        self,
+        context: MatchContext,
+        job: Job,
+        *,
+        persist: bool,
+        include_career_paths: bool,
+    ) -> MatchResult:
         requirement = self.repo.latest_confirmed_requirement(job)
         if requirement is None:
             raise ConflictError("This job has no confirmed requirements.")
@@ -337,25 +387,76 @@ class MatchingService:
             projects=projects,
         )
         composed = compose(features, policy)
-        features["current_match"] = composed.current_match
-        features["scoring_mode"] = SCORING_MODE_BASELINE
-        features["model_version"] = None
-        features["potential"] = None
-        traces = skill_traces(
+        current_before_potential = composed.current_match
+        potential_policy = potential_policy_from_settings()
+        potential = assess_potential(
+            graph=context.potential_graph,
+            index=context.index,
+            ontology_version=context.ontology_version,
             required=required,
             preferred=preferred,
-            ontology_version=context.ontology_version,
-        ) + extra_traces(
-            semantic_available=bool(features["semantic_similarity_available"]),
-            semantic_similarity=features.get("profile_job_cosine"),  # type: ignore[arg-type]
-            experience_satisfied=features.get("experience_satisfied"),  # type: ignore[arg-type]
-            required_experience_years=features.get("required_experience_years"),  # type: ignore[arg-type]
-            candidate_experience_years=features.get("candidate_experience_years"),  # type: ignore[arg-type]
-            education_requirement_present=bool(features.get("education_requirement_present")),
-            education_alignment=features.get("education_alignment"),  # type: ignore[arg-type]
-            relevant_project_count=int(features.get("relevant_project_count") or 0),
-            project_evidence_present=bool(features.get("project_evidence_present")),
+            candidate_skills=context.candidate_skills,
+            profile=context.profile,
+            policy=potential_policy,
+            semantic=semantic,
         )
+        features.update(potential.features)
+        features["current_match"] = current_before_potential
+        embedding_identity = None
+        if features.get("embedding_model_name"):
+            embedding_identity = (
+                f"{features.get('embedding_model_name')}|"
+                f"{features.get('embedding_model_version')}|"
+                f"{features.get('embedding_text_version')}"
+            )
+        inference = score_features(
+            self.db,
+            features,
+            ontology_version=context.ontology_version,
+            embedding_identity=embedding_identity,
+        )
+        features["scoring_mode"] = inference.scoring_mode
+        features["model_version"] = inference.model_version
+        features["model_relevance_score"] = inference.model_relevance_score
+        features["fallback_reason"] = inference.fallback_reason
+        features["feature_schema_version"] = SNAPSHOT_FEATURE_SCHEMA_VERSION
+        traces = (
+            skill_traces(
+                required=required,
+                preferred=preferred,
+                ontology_version=context.ontology_version,
+            )
+            + extra_traces(
+                semantic_available=bool(features["semantic_similarity_available"]),
+                semantic_similarity=features.get("profile_job_cosine"),  # type: ignore[arg-type]
+                experience_satisfied=features.get("experience_satisfied"),  # type: ignore[arg-type]
+                required_experience_years=features.get("required_experience_years"),  # type: ignore[arg-type]
+                candidate_experience_years=features.get("candidate_experience_years"),  # type: ignore[arg-type]
+                education_requirement_present=bool(features.get("education_requirement_present")),
+                education_alignment=features.get("education_alignment"),  # type: ignore[arg-type]
+                relevant_project_count=int(features.get("relevant_project_count") or 0),
+                project_evidence_present=bool(features.get("project_evidence_present")),
+            )
+            + list(potential.traces)
+        )
+        if inference.fallback_reason:
+            traces.append(
+                {
+                    "type": "ml_fallback",
+                    "reason": inference.fallback_reason,
+                    "note": "Recommendations used baseline matching; trained model unavailable.",
+                }
+            )
+        traces.extend(inference.ml_explanations)
+        paths: list[dict[str, Any]] = []
+        if include_career_paths:
+            paths = suggested_paths_for_gaps(
+                graph=context.potential_graph,
+                index=context.index,
+                gaps=potential.gaps,
+                candidate_skills=context.candidate_skills,
+                max_distance=potential_policy.max_graph_distance,
+            )
         run_id = None
         created_at = None
         if persist:
@@ -363,14 +464,17 @@ class MatchingService:
                 candidate_id=context.candidate_id,
                 job_id=job.id,
                 ontology_version_id=context.ontology_version_id,
-                feature_schema_version=policy.feature_schema_version or FEATURE_SCHEMA_VERSION,
+                feature_schema_version=SNAPSHOT_FEATURE_SCHEMA_VERSION,
                 weight_set_version=policy.weight_set_version,
-                current_match=composed.current_match,
+                current_match=current_before_potential,
+                potential=potential.potential,
                 semantic_similarity=features.get("profile_job_cosine"),  # type: ignore[arg-type]
                 project_relevance=features.get("relevant_project_cosine"),  # type: ignore[arg-type]
                 experience_relevance=features.get("relevant_experience_cosine"),  # type: ignore[arg-type]
                 features=features,
                 traces=traces,
+                scoring_mode=inference.scoring_mode,
+                model_version=inference.model_version,
             )
             run_id = run.id
             created_at = run.created_at
@@ -378,13 +482,21 @@ class MatchingService:
         return MatchResult(
             candidate_id=context.candidate_id,
             job_id=job.id,
-            current_match=composed.current_match,
-            potential=None,
+            current_match=current_before_potential,
+            potential=potential.potential,
+            potential_status=potential.status,
+            potential_components={
+                item.name: item.value if item.available else None for item in potential.components
+            },
+            suggested_skill_paths=paths,
             semantic_similarity=float(cosine) if isinstance(cosine, (int, float)) else None,
             semantic_similarity_available=bool(features["semantic_similarity_available"]),
-            scoring_mode="baseline",
-            model_version=None,
-            feature_schema_version=policy.feature_schema_version or FEATURE_SCHEMA_VERSION,
+            scoring_mode=inference.scoring_mode,
+            model_version=inference.model_version,
+            model_relevance_score=inference.model_relevance_score,
+            ml_explanations=inference.ml_explanations,
+            fallback_reason=inference.fallback_reason,
+            feature_schema_version=SNAPSHOT_FEATURE_SCHEMA_VERSION,
             ontology_version=context.ontology_version,
             weight_set_version=policy.weight_set_version,
             required_skill_coverage=float(features["required_skill_coverage"]),
@@ -481,6 +593,7 @@ class MatchContext:
         candidate_skills: list[SkillRef],
         index: OntologyIndex,
         graph: SkillGraph,
+        potential_graph: SkillGraph,
         ontology_version: str,
         ontology_version_id: uuid.UUID | None,
         encoder_identity: EncoderIdentity,
@@ -490,6 +603,7 @@ class MatchContext:
         self.candidate_skills = candidate_skills
         self.index = index
         self.graph = graph
+        self.potential_graph = potential_graph
         self.ontology_version = ontology_version
         self.ontology_version_id = ontology_version_id
         self.encoder_identity = encoder_identity
@@ -652,4 +766,12 @@ def _float_or_none(value: Any) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _list_sort_key(
+    scoring_mode: str, model_relevance_score: float | None, current_match: float
+) -> tuple[float, float]:
+    if scoring_mode == SCORING_MODE_TRAINED and model_relevance_score is not None:
+        return (-model_relevance_score, -current_match)
+    return (0.0, -current_match)
 

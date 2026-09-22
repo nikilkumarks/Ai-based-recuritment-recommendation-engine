@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,16 +68,25 @@ class CandidateDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class RecruiterDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Potential future training labels. No action is assumed positive or negative here."""
+    """Append-only recruiter actions. Behavioral labels, not hiring outcomes."""
 
     __tablename__ = "recruiter_decisions"
     __table_args__ = (
         CheckConstraint(f"action IN {enum_values(RecruiterDecisionAction)}", name="action"),
         Index("ix_recruiter_decisions_job_created", "job_id", "created_at"),
+        Index(
+            "ix_recruiter_decisions_candidate_job_created",
+            "candidate_id",
+            "job_id",
+            "created_at",
+        ),
     )
 
     recruiter_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), index=True
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
@@ -86,6 +95,14 @@ class RecruiterDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True
     )
     action: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(64))
+    note: Mapped[str | None] = mapped_column(Text)
+    match_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("match_runs.id", ondelete="SET NULL")
+    )
+    feature_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("feature_snapshots.id", ondelete="SET NULL")
+    )
     decision_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSONB,

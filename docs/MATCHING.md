@@ -1,8 +1,8 @@
 # Matching — baseline composer
 
-**Status: Phase 7 implemented.** The baseline composer is an interpretable reference system. It is not a trained ML model and its weights are heuristic until validated against labeled data.
+**Status: Phase 7 current match + Phase 8 potential implemented.** The baseline composer is an interpretable reference system. It is not a trained ML model and its weights are heuristic until validated against labeled data.
 
-This document is the contract for candidate–job **current match**. Potential, ranking, and XGBoost are out of scope.
+This document is the contract for candidate–job **current match**. Potential (gap closability) is specified in `docs/POTENTIAL.md`. Ranking and XGBoost remain out of scope.
 
 ## Philosophy
 
@@ -17,7 +17,7 @@ It is:
 
 It is **not** accuracy, precision, recall, NDCG, or an “AI score.” Cosine similarity is a feature, not the match score.
 
-Potential (gap closability) is **not calculated**. `potential` is always `null`. `scoring_mode` is always `baseline`. `model_version` is always `null`.
+Potential (gap closability) is a **separate** heuristic. It must not equal `current_match` and must not change current-match weights. `scoring_mode` is always `baseline`. `model_version` is always `null`. See `docs/POTENTIAL.md`.
 
 ## Architecture
 
@@ -27,11 +27,13 @@ Confirmed job     → canonical required/preferred skills → job embedding
         ↓
 Match orchestrator
         ↓
-Feature extraction (feature-schema-v1)
+Feature extraction (feature-schema-v1 fields; snapshots persist feature-schema-v2)
         ↓
-Baseline composer (weighted, configurable)
+Baseline composer (weighted, configurable) → current_match
         ↓
-Explanation traces + gaps
+Potential composer (heuristic closability; does not mutate current_match)
+        ↓
+Explanation traces + gaps + suggested skill paths
         ↓
 MatchResult DTO
         ↓
@@ -40,11 +42,11 @@ match_runs + feature_snapshots + match_explanations
 
 The same composer scores **candidate → jobs** and **job → candidates**. Only authorization and the filtered set change.
 
-Matching may consume ontology, embeddings, candidates, and jobs. It must not import `ml` or `ranking`.
+Matching may consume ontology, embeddings, candidates, and jobs. It must not import `ml`, `ranking`, or `career`. The career module may call matching for job-targeted paths.
 
 ## Feature schema (`feature-schema-v1`)
 
-Every snapshot includes `feature_schema_version`, `candidate_id`, `job_id`, `created_at`, `ontology_version`, embedding identity (model/name/version/dimensions/text version), and the feature values below. Feature meanings must not change silently; bump the schema version instead.
+Every snapshot includes `feature_schema_version`, `candidate_id`, `job_id`, `created_at`, `ontology_version`, embedding identity (model/name/version/dimensions/text version), and the feature values below. **v1 field meanings must not change silently.** Phase 8 persists **`feature-schema-v2`**: the v1 fields plus `potential_*` keys documented in `docs/POTENTIAL.md`. The baseline composer still reads only v1 fields.
 
 ### Skill features
 
@@ -140,23 +142,23 @@ Do not fabricate skills, years, education, project relevance, or cosine.
 
 ## Persistence
 
-Every scoring call that is not a counterfactual **inserts** a new `match_run` (no overwrite), a `feature_snapshots` row with the full feature JSON, and `match_explanations.traces`. `MatchRun.current_match` is `Numeric(5,2)` so the stored column is rounded to two decimals; the DTO uses four. Reconstruct the composer from the snapshot features + policy.
+Every scoring call that is not a counterfactual **inserts** a new `match_run` (no overwrite), a `feature_snapshots` row with the full feature JSON, and `match_explanations.traces`. `MatchRun.current_match` is `Numeric(5,2)` so the stored column is rounded to two decimals; the DTO uses four. Reconstruct the composer from the snapshot v1 fields + policy.
 
-- `potential = null`
+- `potential` = heuristic closability or `null` when `potential_status=not_applicable`
 - `scoring_mode = baseline`
 - `model_version = null`
 
 ## Match result DTO
 
-Public fields include `current_match`, `potential=null`, `semantic_similarity`, `scoring_mode`, `model_version=null`, schema/ontology versions, matched/partial/related/missing skills, gaps, explanations, and component breakdown. Internal SQLAlchemy models are not returned.
+Public fields include `current_match`, `potential` / `potential_status` / `potential_components`, `semantic_similarity`, `scoring_mode`, `model_version=null`, schema/ontology versions, matched/partial/related/missing skills, gaps, explanations, and component breakdown. Candidate/admin detail may include `suggested_skill_paths`. Internal SQLAlchemy models are not returned.
 
 ## Explanation traces
 
-Structured JSON only (no LLM): `alias_match`, `exact_match`, `hierarchy_child`, `hierarchy_parent`, `related_skill`, `missing_skill`, `preferred_skill`, `semantic_similarity`, `experience_match`, `experience_gap`, `experience_unknown`, `education_match`, `project_evidence`.
+Structured JSON only (no LLM): `alias_match`, `exact_match`, `hierarchy_child`, `hierarchy_parent`, `related_skill`, `missing_skill`, `preferred_skill`, `semantic_similarity`, `experience_match`, `experience_gap`, `experience_unknown`, `education_match`, `project_evidence`, plus Phase 8 `potential_*` traces.
 
 ## Counterfactual
 
-`simulate_add_skill` / `POST /api/v1/candidates/{id}/jobs/{job_id}/counterfactual` adds a hypothetical canonical skill **in memory**, recomputes features and baseline score, and returns delta. It does **not** write candidate skills or persist a match run. This is not career recommendation.
+`simulate_add_skill` / `POST /api/v1/candidates/{id}/jobs/{job_id}/counterfactual` adds a hypothetical canonical skill **in memory**, recomputes current match and potential, and returns deltas. It does **not** write candidate skills or persist a match run.
 
 ## APIs and authorization
 
@@ -166,9 +168,10 @@ Structured JSON only (no LLM): `alias_match`, `exact_match`, `hierarchy_child`, 
 | GET | `/api/v1/candidates/{candidate_id}/jobs/{job_id}/match` | Owner, org recruiter in talent-pool scope, or admin |
 | POST | `/api/v1/candidates/{candidate_id}/jobs/{job_id}/counterfactual` | Owner or admin |
 | GET | `/api/v1/jobs/{job_id}/candidates` | Org recruiter or admin; **baseline** `current_match DESC` |
+| GET | `/api/v1/candidates/{candidate_id}/career-paths` | Owner or admin. Optional `job_id`. Recruiters: 403. |
 
 Candidate job visibility: confirmed requirements and status not `closed` / `archived` / `paused` (draft and open are included so the lab UI works without a publish flow). Recruiter candidate visibility: existing `can_recruiter_view_candidate` / `CANDIDATE_VISIBILITY_MODE`. IDs from the client are not trusted.
 
 ## Frontend
 
-Functional pages only: `/candidate/jobs`, `/candidate/jobs/[jobId]`, `/recruiter/jobs/[jobId]/candidates`. Label: **Baseline Match**. Never “AI Score.”
+Functional pages only: `/candidate/jobs`, `/candidate/jobs/[jobId]`, `/recruiter/jobs/[jobId]/candidates`. Labels: **Baseline Match** and **Potential**. Never “AI Score.” Never “you know Kubernetes” when the evidence is Docker. Recruiter lists show potential evidence without private suggested skill paths.

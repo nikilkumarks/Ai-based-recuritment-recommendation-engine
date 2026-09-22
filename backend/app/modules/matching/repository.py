@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -157,12 +158,15 @@ class MatchingRepository:
         experience_relevance: float | None,
         features: dict[str, Any],
         traces: list[dict[str, Any]],
+        scoring_mode: str = "baseline",
+        model_version: str | None = None,
     ) -> MatchRun:
+        stamped = datetime.now(timezone.utc)
         run = MatchRun(
             candidate_id=candidate_id,
             job_id=job_id,
-            scoring_mode="baseline",
-            model_version=None,
+            scoring_mode=scoring_mode,
+            model_version=model_version,
             ontology_version_id=ontology_version_id,
             feature_schema_version=feature_schema_version,
             weight_set_version=weight_set_version,
@@ -173,6 +177,7 @@ class MatchingRepository:
             experience_relevance=experience_relevance,
             feature_snapshot=features,
             unconfirmed_profile=False,
+            created_at=stamped,
         )
         self.db.add(run)
         self.db.flush()
@@ -181,9 +186,10 @@ class MatchingRepository:
                 match_run_id=run.id,
                 feature_schema_version=feature_schema_version,
                 features=features,
+                created_at=stamped,
             )
         )
-        self.db.add(MatchExplanation(match_run_id=run.id, traces=traces))
+        self.db.add(MatchExplanation(match_run_id=run.id, traces=traces, created_at=stamped))
         self.db.flush()
         return run
 

@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-ScoringModeLiteral = Literal["baseline"]
+ScoringModeLiteral = Literal["baseline", "trained"]
 
 
 class SkillMatchItem(BaseModel):
@@ -34,7 +34,10 @@ class ScoreComponent(BaseModel):
 
 
 class MatchResult(BaseModel):
-    """Public baseline match contract. Potential is heuristic closability, not hiring probability."""
+    """Public match contract. Potential is heuristic closability, not hiring probability.
+
+    model_relevance_score is a shortlist-prediction score, not a hire probability.
+    """
 
     candidate_id: uuid.UUID
     job_id: uuid.UUID
@@ -46,7 +49,10 @@ class MatchResult(BaseModel):
     semantic_similarity: float | None = None
     semantic_similarity_available: bool
     scoring_mode: ScoringModeLiteral = "baseline"
-    model_version: None = None
+    model_version: str | None = None
+    model_relevance_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    ml_explanations: list[dict[str, Any]] = Field(default_factory=list)
+    fallback_reason: str | None = None
     feature_schema_version: str
     ontology_version: str
     weight_set_version: str
@@ -74,7 +80,8 @@ class CandidateJobMatchSummary(BaseModel):
     partial_skills: list[SkillMatchItem] = Field(default_factory=list)
     related_skills: list[SkillMatchItem] = Field(default_factory=list)
     scoring_mode: ScoringModeLiteral = "baseline"
-    model_version: None = None
+    model_version: str | None = None
+    model_relevance_score: float | None = Field(default=None, ge=0.0, le=1.0)
     semantic_similarity_available: bool
     sort_note: str = "baseline_current_match_desc"
 
@@ -94,8 +101,11 @@ class JobCandidateMatchSummary(BaseModel):
     potential_status: Literal["available", "not_applicable"] = "not_applicable"
     required_skill_coverage: float
     missing_skills: list[SkillMatchItem] = Field(default_factory=list)
+    related_skills: list[SkillMatchItem] = Field(default_factory=list)
     scoring_mode: ScoringModeLiteral = "baseline"
-    model_version: None = None
+    model_version: str | None = None
+    model_relevance_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    current_decision: str | None = None
     sort_note: str = "baseline_current_match_desc"
 
 
@@ -125,4 +135,4 @@ class CounterfactualResult(BaseModel):
     affected_evidence: list[dict[str, Any]] = Field(default_factory=list)
     affected_gaps: list[dict[str, Any]] = Field(default_factory=list)
     scoring_mode: ScoringModeLiteral = "baseline"
-    model_version: None = None
+    model_version: str | None = None

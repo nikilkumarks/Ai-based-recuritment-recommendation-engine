@@ -17,10 +17,18 @@ def test_alembic_upgrade_downgrade_upgrade_on_clean_database() -> None:
     engine = create_engine(url)
     with engine.connect() as conn:
         ext = conn.execute(text("SELECT extname FROM pg_extension WHERE extname = 'vector'")).scalar()
-        tables = inspect(conn).get_table_names()
+        inspector = inspect(conn)
+        tables = inspector.get_table_names()
+        columns = {item["name"] for item in inspector.get_columns("recruiter_decisions")}
+        model_columns = {item["name"] for item in inspector.get_columns("ml_models")}
     engine.dispose()
     assert ext == "vector"
     assert "users" in tables
     assert "skill_relations" in tables
     assert "match_runs" in tables
-    assert "ml_training_runs" in tables
+    assert "dataset_snapshots" in tables
+    assert "ml_models" in tables
+    assert "organization_id" in columns
+    assert "feature_snapshot_id" in columns
+    assert "match_run_id" in columns
+    assert "training_run_id" in model_columns

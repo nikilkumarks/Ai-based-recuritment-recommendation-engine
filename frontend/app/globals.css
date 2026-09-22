@@ -1,16 +1,71 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f1ea;
-  --foreground: #1c1917;
-  --muted: #78716c;
-  --card: #fffcf7;
-  --border: #e7e0d6;
-  --accent: #1d4ed8;
+  --background: #f3f4f6;
+  --foreground: #1c2128;
+  --muted: #5c6570;
+  --card: #ffffff;
+  --border: #d5dbe1;
+  --accent: #163a4a;
+  --accent-hover: #102c38;
+  --success: #1b6b45;
+  --success-bg: #e7f3ec;
+  --warning: #8a5a10;
+  --warning-bg: #f4ecd8;
+  --danger: #9f2a26;
+  --danger-bg: #f6eaea;
+  --info: #1e4d73;
+  --info-bg: #e7eef4;
+  --sidebar: #14242c;
+  --sidebar-fg: #edf2f4;
+  --sidebar-muted: #93a4ad;
+  --sidebar-active: #1c3a46;
+  --ring: #163a4a;
+  --shadow: 0 1px 2px rgba(16, 24, 32, 0.05);
+  --radius: 6px;
 }
 
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans), "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: inherit;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }

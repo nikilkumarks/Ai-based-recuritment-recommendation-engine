@@ -1,2 +1,1 @@
-﻿"""career module — structure only in Phase 0."""
-
+﻿"""Career/growth suggestions. Ontology paths only; not a trained model."""

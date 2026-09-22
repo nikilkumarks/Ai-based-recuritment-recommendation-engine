@@ -1,7 +1,7 @@
 [project]
 name = "prj385-api"
 version = "0.1.0"
-description = "PRJ_385 FastAPI modular monolith — Phase 7 baseline matching."
+description = "PRJ_385 FastAPI modular monolith — Phase 10 trained shortlist inference with baseline fallback."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -21,6 +21,9 @@ dependencies = [
     "spacy>=3.7.0",
     "rapidfuzz>=3.9.0",
     "sentence-transformers>=3.0.0",
+    "numpy>=1.26.0",
+    "scikit-learn>=1.5.0",
+    "xgboost>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -51,5 +54,5 @@ src = ["app", "tests"]
 select = ["E", "F", "I", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app"]
+known-first-party = ["app", "ml"]
 known-third-party = ["alembic"]

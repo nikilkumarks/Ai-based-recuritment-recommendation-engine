@@ -73,6 +73,22 @@ class Settings(BaseSettings):
     potential_component_certifications: float = 0.05
     potential_component_semantic: float = 0.05
     potential_semantic_cosine_threshold: float = 0.45
+    label_policy_version: str = "label-policy-v1"
+    min_training_rows: int = 50
+    min_positive_labels: int = 5
+    min_negative_labels: int = 5
+    min_unique_jobs: int = 2
+    ml_cv_folds: int = 5
+    ml_random_seed: int = 42
+    ml_primary_metric: str = "ndcg_at_5"
+    model_artifact_dir: str = "ml/artifacts"
+    xgb_n_estimators: int = 80
+    xgb_max_depth: int = 3
+    xgb_learning_rate: float = 0.1
+    xgb_subsample: float = 0.8
+    xgb_colsample_bytree: float = 0.8
+    xgb_min_child_weight: int = 1
+    xgb_reg_lambda: float = 1.0
 
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

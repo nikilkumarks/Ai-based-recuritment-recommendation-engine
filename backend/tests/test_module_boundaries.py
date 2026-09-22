@@ -44,6 +44,13 @@ def test_matching_must_not_import_ranking_or_ml() -> None:
     for path in _python_sources("matching"):
         assert not _imports_prefix(path, "app.modules.ranking")
         assert not _imports_prefix(path, "app.modules.ml")
+        assert not _imports_prefix(path, "app.modules.career")
+
+
+def test_career_must_not_import_ml_or_ranking() -> None:
+    for path in _python_sources("career"):
+        assert not _imports_prefix(path, "app.modules.ml")
+        assert not _imports_prefix(path, "app.modules.ranking")
 
 
 def test_ml_module_has_no_fastapi_router() -> None:

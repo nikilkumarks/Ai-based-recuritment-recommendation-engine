@@ -29,7 +29,7 @@ export function HealthStatus() {
   }, []);
 
   const tone =
-    status === "ok" ? "text-emerald-800" : status === "error" ? "text-red-800" : "text-[var(--muted)]";
+    status === "ok" ? "text-[var(--success)]" : status === "error" ? "text-[var(--danger)]" : "text-[var(--muted)]";
 
   return (
     <p className={`font-mono text-sm ${tone}`} data-testid="api-health">

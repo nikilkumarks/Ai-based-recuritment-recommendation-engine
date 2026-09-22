@@ -2,17 +2,30 @@
 
 Training and evaluation for PRJ_385 live here, **not** in FastAPI request handlers.
 
-## Phase 0 status
+```bash
+python -m ml.train --dataset <dataset_snapshot_id>
+python -m ml.evaluate --dataset <dataset_snapshot_id>
+```
 
-- No dataset
-- No labels
-- No trained model
-- `ml/artifacts/` is gitignored
-- `python -m ml.train` and `python -m ml.evaluate` exit with an explanation
+Recruiter shortlist/reject decisions are behavioral labels and are not ground-truth hiring outcomes.
+
+No trained project model is produced until sufficient real labeled data exists.
+
+If the snapshot has fewer than `MIN_TRAINING_ROWS` real eligible rows (current project data: 3), training prints:
+
+```
+Training skipped:
+insufficient real labeled data.
+Insufficient real labeled data for training experiment.
+```
+
+and does not write an artifact.
 
 ## Rules
 
 - Do not depend on HTTP requests.
-- Do not commit weights or metrics files.
-- Do not report accuracy until `docs/ML.md` decisions are finalized and evaluation has run against a real held-out set.
-- Serving inference will load an **activated** artifact from the model registry in a later phase. Swapping `RANKER_IMPL` must not change the frontend DTO contract.
+- Do not commit weights or metrics files (`ml/artifacts/` is gitignored).
+- Do not report fixture metrics as project accuracy.
+- TEST FIXTURE ONLY data in `ml/fixture.py` is for plumbing tests.
+- Serving loads an **activated** artifact from `MODEL_ARTIFACT_DIR` with baseline fallback.
+- Details: `docs/ML_TRAINING.md`

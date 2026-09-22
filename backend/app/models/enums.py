@@ -101,6 +101,7 @@ class RecruiterDecisionAction(str, enum.Enum):
     COMPARE = "compare"
     SHORTLIST = "shortlist"
     REJECT = "reject"
+    REVIEW = "review"
     HIRE = "hire"
 
 
@@ -112,6 +113,7 @@ class ScoringMode(str, enum.Enum):
 class MlModelStatus(str, enum.Enum):
     CANDIDATE = "candidate"
     ACTIVE = "active"
+    REJECTED = "rejected"
     RETIRED = "retired"
 
 

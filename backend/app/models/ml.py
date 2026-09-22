@@ -23,6 +23,13 @@ class DatasetSnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     source: Mapped[str] = mapped_column(String(128), nullable=False)
     row_count: Mapped[int | None] = mapped_column(Integer)
     checksum: Mapped[str | None] = mapped_column(String(64))
+    label_policy_version: Mapped[str | None] = mapped_column(String(64))
+    manifest: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    rows: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
 
 
 class MlModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -37,13 +44,16 @@ class MlModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
     )
 
-    version: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    version: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     model_type: Mapped[str] = mapped_column(String(64), nullable=False)
     artifact_uri: Mapped[str] = mapped_column(String(1024), nullable=False)
     feature_schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
     embedding_model: Mapped[str | None] = mapped_column(String(128))
     ontology_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ontology_versions.id", ondelete="RESTRICT")
+    )
+    training_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ml_training_runs.id", ondelete="RESTRICT")
     )
     metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     parameters: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

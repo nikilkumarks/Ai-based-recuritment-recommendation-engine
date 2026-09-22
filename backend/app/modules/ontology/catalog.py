@@ -11,6 +11,7 @@ SKILLS: tuple[tuple[str, str, str, str], ...] = (
     ("Deep Learning", "deep-learning", "AI/ML", "Neural-network methods under machine learning."),
     ("Natural Language Processing", "natural-language-processing", "AI/ML", "Language skills."),
     ("Computer Vision", "computer-vision", "AI/ML", "Image and video understanding."),
+    ("OpenCV", "opencv", "AI/ML", "Computer vision library."),
     ("TensorFlow", "tensorflow", "AI/ML", "ML framework."),
     ("PyTorch", "pytorch", "AI/ML", "ML framework."),
     ("scikit-learn", "scikit-learn", "AI/ML", "Classical ML library."),
@@ -80,6 +81,7 @@ PARENT_EDGES: tuple[tuple[str, str], ...] = (
 RELATED_EDGES: tuple[tuple[str, str], ...] = (
     ("machine-learning", "natural-language-processing"),
     ("machine-learning", "computer-vision"),
+    ("computer-vision", "opencv"),
     ("docker", "kubernetes"),
     ("react", "nextjs"),
     ("javascript", "nodejs"),

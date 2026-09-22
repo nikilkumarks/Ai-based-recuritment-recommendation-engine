@@ -19,7 +19,7 @@ from app.models import (
 from app.models.enums import UserRole, UserStatus
 from app.modules.identity.password import hash_password
 from app.modules.matching.composer import compose
-from app.modules.matching.constants import FEATURE_SCHEMA_VERSION, RELATED_REQUIRED_CREDIT
+from app.modules.matching.constants import RELATED_REQUIRED_CREDIT
 from app.modules.matching.evidence import SkillRef, collect_required_evidence
 from app.modules.matching.policies import default_scoring_policy
 from app.modules.ontology.graph import SkillGraph
@@ -195,8 +195,10 @@ def test_scenario_alias_related_preferred(
     body = match.json()
     assert body["scoring_mode"] == "baseline"
     assert body["model_version"] is None
-    assert body["potential"] is None
-    assert body["feature_schema_version"] == FEATURE_SCHEMA_VERSION
+    assert body["potential"] is not None
+    assert body["potential_status"] == "available"
+    assert 0.0 <= body["potential"] <= 1.0
+    assert body["feature_schema_version"] == "feature-schema-v2"
     assert body["ontology_version"] == "seed-0.1"
     assert body["required_skill_coverage"] == pytest.approx(2 / 3, abs=1e-4)
     assert body["preferred_skill_coverage"] == pytest.approx(1.0)
@@ -216,6 +218,15 @@ def test_scenario_alias_related_preferred(
     assert k8s_related["candidate_evidence"] == "Docker"
     gaps = {item["skill"]: item["type"] for item in body["gaps"]}
     assert gaps.get("Kubernetes") == "related"
+    adjacent = next(
+        item
+        for item in body["explanations"]
+        if item["type"] == "potential_adjacent" and item.get("missing_skill") == "Kubernetes"
+    )
+    assert adjacent["candidate_skill"] == "Docker"
+    assert adjacent["relation"] == "related_to"
+    assert adjacent["distance"] == 1
+    assert body["suggested_skill_paths"]
     db_session.expire_all()
     runs = (
         db_session.query(MatchRun)
@@ -224,16 +235,18 @@ def test_scenario_alias_related_preferred(
     )
     assert runs
     run = runs[-1]
-    assert run.potential is None
+    assert run.potential is not None
     assert run.scoring_mode == "baseline"
     assert run.model_version is None
     snap = db_session.query(FeatureSnapshot).filter(FeatureSnapshot.match_run_id == run.id).one()
-    assert snap.feature_schema_version == FEATURE_SCHEMA_VERSION
+    assert snap.feature_schema_version == "feature-schema-v2"
     assert snap.features["matched_required_skill_count"] == 2
     assert snap.features["required_skill_count"] == 3
     assert snap.features["matched_preferred_skill_count"] == 1
     reconstructed = compose(snap.features, default_scoring_policy())
     assert reconstructed.current_match == pytest.approx(body["current_match"])
+    assert body["current_match"] == pytest.approx(reconstructed.current_match)
+    assert snap.features.get("potential") == pytest.approx(body["potential"])
     explanation = db_session.query(MatchExplanation).filter(MatchExplanation.match_run_id == run.id).one()
     assert explanation.traces
 
@@ -503,6 +516,10 @@ def test_counterfactual_does_not_modify_db(
     assert body["persisted"] is False
     assert body["delta"] > 0
     assert body["simulated_current_match"] > body["baseline_current_match"]
+    assert body["potential_before"] is not None
+    assert body["potential_after"] is None
+    assert body["scoring_mode"] == "baseline"
+    assert body["model_version"] is None
     db_session.expire_all()
     after = (
         db_session.query(CandidateSkill)
@@ -531,7 +548,6 @@ def test_candidate_authorization_and_two_way(
     listed = client.get(f"/api/v1/candidates/{cid}/jobs", headers=_bearer(cand_token))
     assert listed.status_code == 200, listed.text
     assert listed.json()["scoring_mode"] == "baseline"
-    assert listed.json()["potential"] is None
     assert listed.json()["items"]
     rec_list = client.get(f"/api/v1/jobs/{job_id}/candidates", headers=_bearer(rec_token))
     assert rec_list.status_code == 200, rec_list.text

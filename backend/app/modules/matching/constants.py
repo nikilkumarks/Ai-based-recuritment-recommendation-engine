@@ -7,6 +7,7 @@ FEATURE_SCHEMA_V2 = "feature-schema-v2"
 SNAPSHOT_FEATURE_SCHEMA_VERSION = FEATURE_SCHEMA_V2
 WEIGHT_SET_VERSION = "baseline-weights-v1"
 SCORING_MODE_BASELINE = "baseline"
+SCORING_MODE_TRAINED = "trained"
 
 # Required-skill coverage counts exact canonical/alias matches only.
 # Child, parent, and related evidence are traces/gaps, not satisfied requirements.

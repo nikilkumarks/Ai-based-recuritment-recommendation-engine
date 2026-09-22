@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import date
@@ -9,7 +10,6 @@ from typing import Any, Literal
 
 from app.models import CandidateProfile, CertificationItem
 from app.modules.matching.composer import ComponentScore, clamp_score
-from app.modules.matching.constants import SCORE_DECIMALS
 from app.modules.matching.evidence import SkillEvidence, SkillRef
 from app.modules.ontology.graph import SkillGraph
 from app.modules.ontology.policies import classify_relationship
@@ -228,7 +228,12 @@ def assess_potential(
         score = 0.0
     else:
         score = sum(item.value * item.weight for item in used) / weight_sum
-    traces = _graph_traces(required_close, ontology_version) + project_traces + experience_traces + cert_traces
+    traces = (
+        _graph_traces(required_close, ontology_version)
+        + project_traces
+        + experience_traces
+        + cert_traces
+    )
     if semantic_available:
         traces.append(
             {
@@ -416,7 +421,8 @@ def _artifact_evidence(
         recency = _recency_factor(item, policy)
         for gap in gaps:
             names = _gap_vocab(gap, index)
-            text_hit = any(name and name.casefold() in text.casefold() for name in names)
+            overlap = _text_overlap(text, names)
+            text_hit = overlap is not None
             if not text_hit and not cosine_hit:
                 continue
             value = 0.7 if text_hit else 0.0
@@ -429,7 +435,7 @@ def _artifact_evidence(
                     "type": f"potential_{kind}",
                     "missing_skill": gap.skill_name,
                     kind: getattr(item, "name", None) or getattr(item, "job_title", None),
-                    "evidence": "text_overlap" if text_hit else "embedding_cosine_heuristic",
+                    "evidence": overlap or "embedding_cosine_heuristic",
                     "recency_factor": recency,
                 }
             )
@@ -454,7 +460,8 @@ def _certification_evidence(
         recency = _recency_factor(cert, policy)
         for gap in gaps:
             names = _gap_vocab(gap, index)
-            if not any(name and name.casefold() in text.casefold() for name in names):
+            overlap = _text_overlap(text, names)
+            if overlap is None:
                 continue
             scores.append(0.6 * recency)
             traces.append(
@@ -462,7 +469,7 @@ def _certification_evidence(
                     "type": "potential_certification",
                     "missing_skill": gap.skill_name,
                     "certification": cert.name,
-                    "evidence": "name_overlap",
+                    "evidence": overlap,
                 }
             )
             break
@@ -502,17 +509,39 @@ def _recency_factor(item: object, policy: PotentialPolicy) -> float:
     return 1.0
 
 
+def _text_overlap(text: str, names: list[str]) -> str | None:
+    """Whole-token overlap. Avoids alias 'CV' matching inside 'OpenCV'."""
+    haystack = text.casefold()
+    hits: list[str] = []
+    for name in names:
+        needle = (name or "").strip().casefold()
+        if len(needle) < 3:
+            continue
+        if re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", haystack):
+            hits.append(name)
+    if not hits:
+        return None
+    return max(hits, key=lambda item: len(item))
+
+
 def _gap_vocab(gap: GapClosability, index: OntologyIndex) -> list[str]:
     names = [gap.skill_name]
     if gap.candidate_skill_name:
         names.append(gap.candidate_skill_name)
-    record = index.skills.get(gap.skill_id)
-    if record is not None:
-        names.append(record.canonical_name)
+    ids = {gap.skill_id}
     if gap.candidate_skill_id is not None:
-        other = index.skills.get(gap.candidate_skill_id)
-        if other is not None:
-            names.append(other.canonical_name)
+        ids.add(gap.candidate_skill_id)
+    ids.update(index.related.get(gap.skill_id, ()))
+    ids.update(index.children.get(gap.skill_id, ()))
+    ids.update(index.parents.get(gap.skill_id, ()))
+    ids.update(index.similar.get(gap.skill_id, ()))
+    for skill_id in ids:
+        record = index.skills.get(skill_id)
+        if record is not None:
+            names.append(record.canonical_name)
+        for lookup, mapped in index.exact_alias.items():
+            if mapped == skill_id:
+                names.append(lookup)
     return names
 
 

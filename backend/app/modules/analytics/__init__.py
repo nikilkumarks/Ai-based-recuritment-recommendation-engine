@@ -1,2 +1,1 @@
-﻿"""analytics module — structure only in Phase 0."""
-
+﻿"""Descriptive analytics and dataset snapshot HTTP. No trained models."""

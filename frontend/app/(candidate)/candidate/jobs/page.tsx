@@ -1,12 +1,13 @@
 import { CandidateJobsList } from "@/components/matching/candidate-jobs-list";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default function CandidateJobsPage() {
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Jobs</h1>
-      <p className="text-[var(--muted)]">
-        Baseline Match for jobs you can see. This is not a trained AI score.
-      </p>
+    <div>
+      <PageHeader
+        title="Recommended jobs"
+        description="Current Match is how closely you satisfy the requirements today. Potential is gap closability, not a hiring probability."
+      />
       <CandidateJobsList />
     </div>
   );

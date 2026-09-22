@@ -1,4 +1,5 @@
 import { RecruiterJobCandidates } from "@/components/matching/recruiter-job-candidates";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default async function RecruiterJobCandidatesPage({
   params,
@@ -7,11 +8,11 @@ export default async function RecruiterJobCandidatesPage({
 }) {
   const { jobId } = await params;
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Candidates</h1>
-      <p className="text-[var(--muted)]">
-        Sorted by Baseline Match descending. This is baseline sorting, not a trained ranker.
-      </p>
+    <div>
+      <PageHeader
+        title="Candidate ranking"
+        description="Scan Current Match, Potential, coverage, and gaps. Shortlist and reject are recruiter actions, not hiring outcomes."
+      />
       <RecruiterJobCandidates jobId={jobId} />
     </div>
   );

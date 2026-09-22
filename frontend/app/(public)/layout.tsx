@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { SiteHeader } from "@/components/site-header";
+import { PublicHeader } from "@/components/layout/public-header";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
     <>
-      <SiteHeader />
-      <main className="mx-auto max-w-5xl px-6 py-12">{children}</main>
+      <PublicHeader />
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">{children}</main>
     </>
   );
 }

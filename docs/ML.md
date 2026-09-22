@@ -1,10 +1,16 @@
 # ML decisions
 
-**Status: not finalized for training.** Phase 7 added an interpretable baseline composer. **The baseline composer is an interpretable reference system. It is not a trained ML model and its weights are heuristic until validated against labeled data.** Phase 6 embeddings provide semantic similarity features. They do not produce the final recruitment score.
+**Status: Phase 10 training pipeline is implemented.** Phase 7 added an interpretable baseline composer. Phase 8 added a **deterministic potential heuristic** for gap closability. Phase 9 collects recruiter SHORTLIST/REJECT labels and builds point-in-time dataset snapshots. Phase 10 trains XGBoost **only** when a snapshot meets `MIN_TRAINING_ROWS` and class/group floors. **No trained project model is produced until sufficient real labeled data exists.** Potential is not a probability of hiring, selection, or future performance. Phase 6 embeddings provide semantic similarity features. They do not produce the final recruitment score.
 
-That is not an ML model, not a ranker, and not XGBoost. Cosine similarity must not be shown as "87% Match".
+Recruiter shortlist/reject decisions are behavioral labels and are not ground-truth hiring outcomes.
+
+See `docs/ML_TRAINING.md` for the training contract, activation policy, fallback, and metric rules.
+
+That is not an excuse to show cosine similarity as "87% Match". Fake labels, invented accuracy, and automatic retraining are forbidden. Training is offline (`python -m ml.train`). There is no public training HTTP endpoint.
 
 NLP extraction is not semantic skill normalization. Skill normalization is not candidate-job matching. Embedding similarity is a third evidence source and must not write canonical skills.
+
+See `docs/DATASET.md` for label policy, point-in-time joins, exclusion rules, and leakage prevention.
 
 ## Embeddings (Phase 6)
 
@@ -17,40 +23,41 @@ NLP extraction is not semantic skill normalization. Skill normalization is not c
 - Test-only hashing encoder identity: `hashing-encoder` / `hashing-v1` (8-d). Production Docker installs `sentence-transformers`.
 - Privacy: source text and raw vectors are not logged and not returned to candidates/recruiters
 
-Phase 1 added **empty** persistence for future training. Nothing in `ml_models` is a result, a metric, or a label policy.
+Phase 1 added **empty** persistence for future training. Phase 10 writes `ml_training_runs` and `ml_models` only when a real (or TEST FIXTURE ONLY) train succeeds. Skip-on-insufficient-data does not create a project model. Nothing is auto-activated.
 
 ## Persistence now in PostgreSQL
 
-- `feature_snapshots` — frozen inference feature JSON keyed to a `match_run`. Empty until matching exists.
-- `recruiter_decisions` — view/compare/shortlist/reject/hire actions. **Not labeled** as positive or negative yet.
-- `dataset_snapshots` — registry of future training sets. No rows required. No dataset is assumed to exist.
-- `ml_models` / `ml_training_runs` — registry and run audit. Status `candidate|active|retired`. No artifacts. No metrics.
+- `feature_snapshots` — frozen inference feature JSON keyed to a `match_run`. Immutable after insert.
+- `recruiter_decisions` — append-only recruiter actions (`shortlist|reject|review`, plus legacy view/compare/hire). Behavioral labels, not hiring outcomes.
+- `dataset_snapshots` — point-in-time training-row payloads and manifests. Training consumes them read-only.
+- `ml_models` / `ml_training_runs` — registry and run audit. Statuses: candidate, active, rejected, retired. At most one active model.
 
 ## Dataset
 
-Not selected. Candidates (none assumed to exist in-repo):
-
-- Product labels from recruiter shortlist/reject (after that UI exists)
-- Team-annotated gold pairs
-- Licensed public data (ESCO/O*NET or similar) after a license check
+Source: recruiter `shortlist` / `reject` joined to the latest **pre-decision** feature snapshot. Versioned snapshots (`dataset-v1-…`). Details: `docs/DATASET.md`.
 
 Do not invent a dataset or commit synthetic “accuracy.”
 
 ## Target variable
 
-Not selected. Options discussed in architecture: P(shortlist), P(hire), expert grade, pairwise preference.
+Initial binary target (`label-policy-v1`): P(recruiter shortlist) approximated as shortlist=1, reject=0. This is **not** P(hire). `review` and no-decision are unlabeled.
 
 ## Labels
 
-Not defined. Decide what counts as a positive, what is a true negative, and what is unknown (e.g. viewed but not shortlisted). Recruiter decision rows are **not** automatically labels.
+- SHORTLIST = positive
+- REJECT = negative
+- REVIEW = unlabeled / excluded
+- No decision = excluded (not a rejection)
+
+Latest binary decision per `(candidate_id, job_id)` is the training label. Full event history is retained. Conflicting recruiters set `decision_conflict=true`; no consensus is invented.
 
 ## Features
 
-Serving uses versioned `feature-schema-v1` (see `docs/MATCHING.md`). Snapshots store the exact values used at inference time on `feature_snapshots`. No XGBoost training is implemented. Potential is not a feature yet.
+Serving uses versioned `feature-schema-v1` fields for current match (see `docs/MATCHING.md`). Snapshots persist `feature-schema-v2` so potential features can be stored without changing v1 meanings. Dataset rows keep `feature_schema_version`, `ontology_version`, and embedding identity. `job_id` is grouping metadata, not a predictive feature. Protected attributes and recruiter notes are excluded. No XGBoost training is implemented. Potential features are heuristic closability signals, not labels.
 
 ## Train / validation / test strategy
 
-Not selected. Architecture recommendation: **GroupKFold by `job_id`**, point-in-time features (no post-decision leakage). Confirm before the first reported experiment.
+**GroupKFold by `job_id`**. Random row splitting is not the primary evaluation. Details: `docs/ML_TRAINING.md`.
 
 ## Baselines
 
@@ -64,12 +71,12 @@ A model that loses to these baselines on a held-out set must not be activated.
 
 ## Evaluation metrics
 
-Not selected. **No ML metrics exist yet.** Depends on the target (ROC/PR-AUC, precision/recall@k, NDCG@k, etc.).
+ROC-AUC, PR-AUC, precision, recall, F1, Precision@K / Recall@K / NDCG@K for K in 1,3,5,10. If invalid for the data: `null` / `insufficient_data`. **No project performance metrics exist until a real snapshot meets the training floors.** Fixture metrics are TEST FIXTURE ONLY.
 
 ## Model versions
 
-Registry table `ml_models` exists (`status = candidate | active | retired`). At most one row may be `active`. `RANKER_IMPL=baseline` until an artifact is evaluated and activated. No model has been trained.
+Registry table `ml_models` (`status = candidate | active | rejected | retired`). At most one row may be `active`. Artifacts in `MODEL_ARTIFACT_DIR`. Serving falls back to baseline when no compatible active model exists. No project model is trained until sufficient real labeled data exists.
 
 ## Reproducibility
 
-Each future training run must record git SHA, ontology version, embedding model name, feature schema version, hyperparameters, and data snapshot id. Not applicable until a dataset exists.
+Each training run records seed, ontology versions, embedding identity, feature schema, hyperparameters, dataset snapshot id, and library versions. Same snapshot + config + seed should reproduce as far as library/platform determinism allows.

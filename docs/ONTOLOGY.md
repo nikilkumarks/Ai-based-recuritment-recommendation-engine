@@ -35,6 +35,7 @@ Lookup normalization preserves `C++`, `C#`, `.NET`, `Node.js`, `Next.js`, `CI/CD
 | Machine Learning | Deep Learning | child | Partial/related evidence, **not** mastery of ML |
 | Deep Learning | Machine Learning | parent | Weak/parent evidence, **not** Deep Learning |
 | Kubernetes | Docker | related | Related skill, **not** equivalent |
+| Computer Vision | OpenCV | related | Library adjacent to CV, **not** exact CV |
 
 `parent_of` is stored in one direction. `child_of` is derived. Cycles are rejected.
 

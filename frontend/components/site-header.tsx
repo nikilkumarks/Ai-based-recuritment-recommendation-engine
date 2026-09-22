@@ -34,16 +34,31 @@ export function SiteHeader({ role }: { role?: string }) {
             </>
           ) : null}
           {role === "Recruiter" ? (
-            <Link href="/recruiter/jobs" className="hover:text-[var(--foreground)]">
-              Jobs
-            </Link>
+            <>
+              <Link href="/recruiter/jobs" className="hover:text-[var(--foreground)]">
+                Jobs
+              </Link>
+              <Link href="/recruiter/analytics" className="hover:text-[var(--foreground)]">
+                Analytics
+              </Link>
+            </>
+          ) : null}
+          {role === "Admin" ? (
+            <>
+              <Link href="/admin/datasets" className="hover:text-[var(--foreground)]">
+                Datasets
+              </Link>
+              <Link href="/admin/models" className="hover:text-[var(--foreground)]">
+                Models
+              </Link>
+            </>
           ) : null}
           <AuthStatus />
         </nav>
       </div>
       {role ? (
         <div className="border-t border-[var(--border)] px-6 py-2 text-center text-xs uppercase tracking-wide text-[var(--muted)]">
-          {role} area — Phase 7 baseline matching is available
+          {role} area — Phase 10 trains only from real labeled snapshots; no fake accuracy
         </div>
       ) : null}
     </header>

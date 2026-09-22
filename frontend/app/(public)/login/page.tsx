@@ -10,20 +10,19 @@ export default async function LoginPage({
   const registered = params.registered === "1";
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-2xl font-semibold">Login</h1>
-      <p className="text-[var(--muted)]">
-        Sign in with email and password. Access tokens stay in memory; the refresh
-        session uses an httpOnly cookie.
+      <h1 className="text-xl font-semibold">Sign in</h1>
+      <p className="text-sm text-[var(--muted)]">
+        Access tokens stay in memory. The refresh session uses an httpOnly cookie.
       </p>
       {registered ? (
-        <p className="rounded border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm">
+        <p className="border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm">
           Account created. You can sign in now.
         </p>
       ) : null}
       <LoginForm />
       <p className="text-sm text-[var(--muted)]">
         No account?{" "}
-        <Link href="/register" className="text-[var(--foreground)] underline">
+        <Link href="/register" className="underline-offset-2 hover:underline">
           Register
         </Link>
       </p>

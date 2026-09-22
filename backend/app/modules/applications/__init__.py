@@ -1,2 +1,1 @@
-﻿"""applications module — structure only in Phase 0."""
-
+﻿"""Recruiter decisions. Append-only behavioral labels, not hiring outcomes."""

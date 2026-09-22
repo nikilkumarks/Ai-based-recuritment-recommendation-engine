@@ -20,14 +20,13 @@ An LLM is **not** the recommendation model. NLP, ontology matching, embeddings, 
 
 ## Current Status
 
-**Phase 7 — Baseline matching.** Deterministic, interpretable current_match (0.0–1.0) from ontology evidence, stored embeddings, and configurable heuristic weights. Not a trained model, not ranking, not accuracy. `potential` remains null.
+**Phase 10 — XGBoost training, evaluation, model registry, and safe inference.** Offline `python -m ml.train` consumes a dataset snapshot. Recruiter shortlist/reject decisions are behavioral labels and are not ground-truth hiring outcomes. **No trained project model is produced until sufficient real labeled data exists.** The current real labeled set is 3 rows (`MIN_TRAINING_ROWS=50`), so training skips. Baseline matching remains the serving default until an admin activates an eligible candidate model.
 
-- No trained ML model
-- No final dataset
-- No production recommendation model
-- No fake metrics, scores, or placeholder ranking logic
+- No fake labels or accuracy claims
+- No public training HTTP endpoint
+- No automatic activation or retraining
 
-The running system is a Next.js UI with login/register, candidate resume upload, profile draft review at http://localhost:3000/candidate/profile, recruiter jobs at http://localhost:3000/recruiter/jobs, a FastAPI auth/documents/NLP API, and PostgreSQL 16 with pgvector. See `docs/SECURITY.md`.
+The running system is a Next.js UI with login/register, candidate resume upload, profile draft review at http://localhost:3000/candidate/profile, recruiter jobs at http://localhost:3000/recruiter/jobs, recruiter analytics at http://localhost:3000/recruiter/analytics, admin datasets at http://localhost:3000/admin/datasets, admin models at http://localhost:3000/admin/models, a FastAPI auth/documents/NLP/matching/analytics API, and PostgreSQL 16 with pgvector. See `docs/SECURITY.md`, `docs/DATASET.md`, and `docs/ML_TRAINING.md`.
 
 ## Architecture
 
@@ -102,7 +101,7 @@ npm run build
 ```
 frontend/    Next.js App Router
 backend/     FastAPI modular monolith
-ml/          Offline train/eval (not implemented)
+ml/          Offline train/eval (`python -m ml.train`, artifacts gitignored)
 ontology/    Seed graph (empty until ontology phase)
 docs/        Architecture, API, ontology, ML, matching decisions
 storage/     Uploaded files (gitignored)
@@ -110,4 +109,4 @@ storage/     Uploaded files (gitignored)
 
 ## What not to add yet
 
-Ranking, XGBoost, career path, analytics, or hardcoded recommendation scores. Those belong to later phases. Baseline matching is implemented and is not a trained model. Embeddings provide semantic similarity features; they are not a recruitment score. Security notes: `docs/SECURITY.md`.
+Phase 11 ranking UI polish and later work. Do not fabricate labels, do not auto-retrain, do not add a public train API, and do not claim hire probabilities. Potential is a heuristic, not trained ML. Baseline matching remains available as fallback. Embeddings are semantic similarity features, not a recruitment score. Security notes: `docs/SECURITY.md`.

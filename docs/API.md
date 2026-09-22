@@ -42,9 +42,28 @@ Errors use RFC 7807 `application/problem+json` (`type`, `title`, `status`, `deta
 | POST | `/api/v1/jobs/{job_id}/embedding` | Org recruiter: embed confirmed job. |
 | POST | `/api/v1/admin/embeddings/similarity` | Admin: cosine similarity of two compatible embeddings. Not a match score. |
 | GET | `/api/v1/candidates/{candidate_id}/jobs` | Owner/admin: baseline current_match per visible job. Not a trained ranker. |
-| GET | `/api/v1/candidates/{candidate_id}/jobs/{job_id}/match` | Owner, in-scope recruiter, or admin: detailed baseline match. `potential` is null. |
+| GET | `/api/v1/candidates/{candidate_id}/jobs/{job_id}/match` | Owner, in-scope recruiter, or admin: detailed baseline match plus heuristic potential. |
 | POST | `/api/v1/candidates/{candidate_id}/jobs/{job_id}/counterfactual` | Owner/admin: in-memory skill addition. Does not persist skills or a match run. |
-| GET | `/api/v1/jobs/{job_id}/candidates` | Org recruiter: visible candidates, **baseline** `current_match DESC`. Not a trained ranker. |
+| GET | `/api/v1/jobs/{job_id}/candidates` | Org recruiter: visible candidates, **baseline** `current_match DESC`. Not a trained ranker. Potential is shown; private career paths are not. Includes `current_decision`. |
+| POST | `/api/v1/jobs/{job_id}/candidates/{candidate_id}/decisions` | Recruiter: append SHORTLIST/REJECT/REVIEW. Links the latest pre-decision feature snapshot. Does not train a model. |
+| GET | `/api/v1/jobs/{job_id}/candidates/{candidate_id}/decisions` | Recruiter/admin: append-only history including private notes. Candidates: 403. |
+| GET | `/api/v1/analytics/recruiter/overview` | Recruiter org: jobs, applications, shortlist/reject counts. Not a hire rate. |
+| GET | `/api/v1/analytics/recruiter/skills` | Recruiter org: demand, supply, gaps. |
+| GET | `/api/v1/analytics/recruiter/matching` | Recruiter org: score distributions. |
+| GET | `/api/v1/analytics/recruiter/funnel` | Recruiter org: jobs → applications → reviewed → shortlisted → rejected. |
+| GET | `/api/v1/analytics/admin/overview` | Admin: system-wide descriptive overview. |
+| GET | `/api/v1/analytics/admin/skills` | Admin: system-wide skill demand/supply. |
+| GET | `/api/v1/analytics/candidates/{candidate_id}/overview` | Owner/admin: that candidate's match distributions only. |
+| POST | `/api/v1/admin/datasets/snapshots` | Admin: create a point-in-time dataset snapshot. Does not train. |
+| GET | `/api/v1/admin/datasets/snapshots` | Admin: list snapshots. |
+| GET | `/api/v1/admin/datasets/snapshots/{id}` | Admin: snapshot detail and training rows (no resume text, no recruiter notes). |
+| GET | `/api/v1/admin/models` | Admin: candidate/active/rejected/retired models. No artifact filesystem paths. |
+| GET | `/api/v1/admin/models/{id}` | Admin: evaluation, baseline comparison, activation eligibility. |
+| POST | `/api/v1/admin/models/{id}/activate` | Admin: activate if artifact, schema, evaluation, and policy pass. Retires the previous active model. |
+| POST | `/api/v1/admin/models/{id}/reject` | Admin: reject a non-active candidate. |
+| GET | `/api/v1/candidates/{candidate_id}/career-paths` | Owner or admin: Suggested Skill Path. Optional `?job_id=`. Recruiters: 403. |
+
+There is **no** `POST /api/v1/train`. Training is `python -m ml.train`.
 
 Authorization **probes** (not recruitment features; used to enforce and test RBAC/tenancy):
 
@@ -92,9 +111,9 @@ SQLAlchemy models must not be returned from routers.
 | Ontology | `skills`, `skill_aliases`, `skill_relations`, `ontology_versions` | Seeded CS/IT catalog. Admin HTTP only. Aliases are not skills. |
 | Embeddings | `embeddings` | pgvector rows for confirmed profiles/jobs/chunks. No ranking. |
 | Jobs | `jobs`, `job_requirements`, `job_required_skills`, `job_preferred_skills` | Create/extract/confirm HTTP is implemented. Canonical job skills are written on confirm. |
-| Applications / decisions | `applications`, `candidate_decisions`, `recruiter_decisions` | HTTP not implemented. |
-| Matching audit | `match_runs`, `match_explanations`, `feature_snapshots`, `embeddings` | Baseline scoring persists a new run per call. Potential is null. |
-| ML registry | `ml_models`, `ml_training_runs`, `dataset_snapshots` | Empty of artifacts and metrics. |
+| Applications / decisions | `applications`, `candidate_decisions`, `recruiter_decisions` | Recruiter decision HTTP is implemented. Append-only. Notes are recruiter-private. |
+| Matching audit | `match_runs`, `match_explanations`, `feature_snapshots`, `embeddings` | Baseline `current_match` is always persisted. `scoring_mode` is `baseline` or `trained`. `trained` requires `model_version`. |
+| ML registry | `ml_models`, `ml_training_runs`, `dataset_snapshots` | Snapshots are immutable training input. Models start as `candidate`. Never auto-activated. Artifact paths are not exposed. |
 | Ops | `processing_jobs`, `audit_logs` | Resume parse and resume NLP jobs are created in-process. No Redis/Celery worker. |
 
 ## Client rule

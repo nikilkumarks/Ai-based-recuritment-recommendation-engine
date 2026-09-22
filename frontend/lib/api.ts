@@ -328,6 +328,8 @@ export type JobDetail = {
   description_raw: string;
   status: string;
   location: string | null;
+  employment_type: string | null;
+  seniority: string | null;
   requirements: {
     id: string;
     confirmation_status: string;
@@ -350,7 +352,15 @@ export async function listJobs(accessToken: string) {
   return apiRequest<{ items: JobSummary[] }>("/api/v1/jobs", { accessToken });
 }
 
-export async function createJob(accessToken: string, payload: { title: string; description_raw: string }) {
+export async function createJob(
+  accessToken: string,
+  payload: {
+    title: string;
+    description_raw: string;
+    location?: string;
+    employment_type?: string;
+  },
+) {
   return apiRequest<JobDetail>("/api/v1/jobs", { method: "POST", accessToken, json: payload });
 }
 
@@ -385,26 +395,50 @@ export type SkillMatchItem = {
   hops: number | null;
 };
 
+export type PotentialStatus = "available" | "not_applicable";
+
+export type ScoringMode = "baseline" | "trained";
+
 export type MatchExplanation = {
-  type: string;
+  type?: string;
+  kind?: string;
+  method?: string;
+  title?: string;
+  note?: string;
   required_skill?: string;
   preferred_skill?: string;
   candidate_evidence?: string;
   canonical_skill_id?: string;
   ontology_version?: string;
   cosine?: number;
+  features?: { feature: string; contribution?: number | null; importance?: number | null }[];
   [key: string]: unknown;
+};
+
+export type SuggestedSkillPath = {
+  target_skill: string;
+  target_skill_id: string;
+  distance: number;
+  relation: string | null;
+  label: string;
+  steps: { skill: string; skill_id: string }[];
 };
 
 export type MatchResult = {
   candidate_id: string;
   job_id: string;
   current_match: number;
-  potential: null;
+  potential: number | null;
+  potential_status: PotentialStatus;
+  potential_components: Record<string, number | null>;
+  suggested_skill_paths: SuggestedSkillPath[];
   semantic_similarity: number | null;
   semantic_similarity_available: boolean;
-  scoring_mode: "baseline";
-  model_version: null;
+  scoring_mode: ScoringMode;
+  model_version: string | null;
+  model_relevance_score: number | null;
+  ml_explanations: MatchExplanation[];
+  fallback_reason: string | null;
   feature_schema_version: string;
   ontology_version: string;
   required_skill_coverage: number;
@@ -414,19 +448,23 @@ export type MatchResult = {
   related_skills: SkillMatchItem[];
   missing_skills: SkillMatchItem[];
   explanations: MatchExplanation[];
+  components?: { name: string; value: number; weight: number; available: boolean }[];
+  gaps?: { skill: string; skill_id: string; type: string }[];
 };
 
 export type CandidateJobMatchSummary = {
   job_id: string;
   job_title: string;
   current_match: number;
-  potential: null;
+  potential: number | null;
+  potential_status: PotentialStatus;
   required_skill_coverage: number;
   missing_skills: SkillMatchItem[];
   partial_skills: SkillMatchItem[];
   related_skills: SkillMatchItem[];
-  scoring_mode: "baseline";
-  model_version: null;
+  scoring_mode: ScoringMode;
+  model_version: string | null;
+  model_relevance_score: number | null;
   semantic_similarity_available: boolean;
 };
 
@@ -435,15 +473,121 @@ export type JobCandidateMatchSummary = {
   identifier: string;
   headline: string | null;
   current_match: number;
-  potential: null;
+  potential: number | null;
+  potential_status: PotentialStatus;
   required_skill_coverage: number;
   missing_skills: SkillMatchItem[];
-  scoring_mode: "baseline";
-  model_version: null;
+  related_skills: SkillMatchItem[];
+  scoring_mode: ScoringMode;
+  model_version: string | null;
+  model_relevance_score: number | null;
+  current_decision: string | null;
 };
 
+export type RecruiterDecisionView = {
+  id: string;
+  recruiter_id: string;
+  job_id: string;
+  candidate_id: string;
+  action: string;
+  reason: string | null;
+  note: string | null;
+  match_run_id: string | null;
+  feature_snapshot_id: string | null;
+  created_at: string;
+};
+
+export type RecruiterOverview = {
+  jobs: number;
+  candidates: number;
+  applications: number;
+  shortlist_count: number;
+  reject_count: number;
+  review_count: number;
+  decision_rate: number | null;
+  shortlist_rate: number | null;
+  disclaimer: string;
+};
+
+export type CountItem = { name: string; count: number };
+
+export type RecruiterSkillsAnalytics = {
+  required_demand: CountItem[];
+  preferred_demand: CountItem[];
+  candidate_supply: CountItem[];
+  top_missing_skills: CountItem[];
+  top_adjacent_skills: CountItem[];
+  gaps: {
+    skill: string;
+    required_jobs: number;
+    candidate_supply: number;
+    missing_comparisons: number;
+    related_comparisons: number;
+  }[];
+};
+
+export type DistributionBucket = { bucket: string; count: number };
+
+export type RecruiterMatchingAnalytics = {
+  current_match: DistributionBucket[];
+  potential: DistributionBucket[];
+  required_skill_coverage: DistributionBucket[];
+  semantic_similarity: DistributionBucket[];
+};
+
+export type DatasetSnapshotSummary = {
+  id: string;
+  name: string;
+  created_at: string | null;
+  row_count: number | null;
+  positive_count: number;
+  negative_count: number;
+  excluded_count: number;
+  label_policy_version: string | null;
+  feature_schema_versions: string[];
+  ontology_versions: string[];
+  embedding_versions: string[];
+  sufficient_for_training_experiment: boolean;
+  trained: boolean;
+};
+
+export async function createRecruiterDecision(
+  jobId: string,
+  candidateId: string,
+  accessToken: string,
+  body: { action: "shortlist" | "reject" | "review"; reason?: string; note?: string },
+) {
+  return apiRequest<RecruiterDecisionView>(
+    `/api/v1/jobs/${jobId}/candidates/${candidateId}/decisions`,
+    { method: "POST", accessToken, json: body },
+  );
+}
+
+export async function getRecruiterOverview(accessToken: string) {
+  return apiRequest<RecruiterOverview>(`/api/v1/analytics/recruiter/overview`, { accessToken });
+}
+
+export async function getRecruiterSkills(accessToken: string) {
+  return apiRequest<RecruiterSkillsAnalytics>(`/api/v1/analytics/recruiter/skills`, { accessToken });
+}
+
+export async function getRecruiterMatching(accessToken: string) {
+  return apiRequest<RecruiterMatchingAnalytics>(`/api/v1/analytics/recruiter/matching`, { accessToken });
+}
+
+export async function listDatasetSnapshots(accessToken: string) {
+  return apiRequest<DatasetSnapshotSummary[]>(`/api/v1/admin/datasets/snapshots`, { accessToken });
+}
+
+export async function createDatasetSnapshot(accessToken: string) {
+  return apiRequest<DatasetSnapshotSummary>(`/api/v1/admin/datasets/snapshots`, {
+    method: "POST",
+    accessToken,
+  });
+}
+
 export async function listCandidateJobs(candidateId: string, accessToken: string) {
-  return apiRequest<{ items: CandidateJobMatchSummary[]; scoring_mode: "baseline"; sort: string; potential: null }>(
+  return apiRequest<{ items: CandidateJobMatchSummary[]; scoring_mode: ScoringMode; sort: string }>(
     `/api/v1/candidates/${candidateId}/jobs`,
     { accessToken },
   );
@@ -457,8 +601,205 @@ export async function listJobCandidates(jobId: string, accessToken: string) {
   return apiRequest<{
     job_id: string;
     items: JobCandidateMatchSummary[];
-    scoring_mode: "baseline";
+    scoring_mode: ScoringMode;
     sort: string;
-    potential: null;
   }>(`/api/v1/jobs/${jobId}/candidates`, { accessToken });
+}
+
+export type MlModelSummary = {
+  id: string;
+  version: string;
+  algorithm: string;
+  status: string;
+  feature_schema_version: string;
+  dataset_snapshot_id: string | null;
+  created_at: string | null;
+  activated_at: string | null;
+  evaluation: Record<string, unknown> | null;
+  baseline_comparison: Record<string, unknown>;
+  activation: Record<string, unknown>;
+  class_balance: Record<string, unknown> | null;
+  leakage_checks: string[] | null;
+  cv_folds: number | null;
+  random_seed: number | null;
+  test_fixture_only: boolean;
+  warning: string | null;
+  target_note: string;
+};
+
+export async function listMlModels(accessToken: string) {
+  return apiRequest<MlModelSummary[]>(`/api/v1/admin/models`, { accessToken });
+}
+
+export async function activateMlModel(modelId: string, accessToken: string) {
+  return apiRequest<MlModelSummary>(`/api/v1/admin/models/${modelId}/activate`, {
+    method: "POST",
+    accessToken,
+  });
+}
+
+export async function rejectMlModel(modelId: string, accessToken: string) {
+  return apiRequest<MlModelSummary>(`/api/v1/admin/models/${modelId}/reject`, {
+    method: "POST",
+    accessToken,
+  });
+}
+
+export type FunnelAnalytics = {
+  jobs: number;
+  applications: number;
+  reviewed: number;
+  shortlisted: number;
+  rejected: number;
+};
+
+export async function getRecruiterFunnel(accessToken: string) {
+  return apiRequest<FunnelAnalytics>(`/api/v1/analytics/recruiter/funnel`, { accessToken });
+}
+
+export async function getAdminOverview(accessToken: string) {
+  return apiRequest<RecruiterOverview>(`/api/v1/analytics/admin/overview`, { accessToken });
+}
+
+export async function getAdminSkills(accessToken: string) {
+  return apiRequest<RecruiterSkillsAnalytics>(`/api/v1/analytics/admin/skills`, { accessToken });
+}
+
+export type CareerPathList = {
+  candidate_id: string;
+  job_id: string | null;
+  label: string;
+  disclaimer: string;
+  items: SuggestedSkillPath[];
+};
+
+export async function getCareerPaths(
+  candidateId: string,
+  accessToken: string,
+  jobId?: string,
+) {
+  const query = jobId ? `?job_id=${jobId}` : "";
+  return apiRequest<CareerPathList>(`/api/v1/candidates/${candidateId}/career-paths${query}`, {
+    accessToken,
+  });
+}
+
+export type CounterfactualResult = {
+  candidate_id: string;
+  job_id: string;
+  skill_id: string;
+  skill_name: string;
+  baseline_current_match: number;
+  simulated_current_match: number;
+  delta: number;
+  potential_before: number | null;
+  potential_after: number | null;
+  potential_delta: number | null;
+  persisted: boolean;
+};
+
+export async function simulateAddSkill(
+  candidateId: string,
+  jobId: string,
+  skillId: string,
+  accessToken: string,
+) {
+  return apiRequest<CounterfactualResult>(
+    `/api/v1/candidates/${candidateId}/jobs/${jobId}/counterfactual`,
+    { method: "POST", accessToken, json: { skill_id: skillId } },
+  );
+}
+
+export type RecruiterDecisionList = {
+  job_id: string;
+  candidate_id: string;
+  current_action: string | null;
+  items: RecruiterDecisionView[];
+  label_note: string;
+};
+
+export async function listRecruiterDecisions(
+  jobId: string,
+  candidateId: string,
+  accessToken: string,
+) {
+  return apiRequest<RecruiterDecisionList>(
+    `/api/v1/jobs/${jobId}/candidates/${candidateId}/decisions`,
+    { accessToken },
+  );
+}
+
+export type OntologySkill = {
+  id: string;
+  canonical_name: string;
+  slug: string;
+  description: string | null;
+  category: string | null;
+  status: string;
+};
+
+export async function listOntologySkills(accessToken: string) {
+  return apiRequest<{ ontology_version: string | null; items: OntologySkill[] }>(
+    `/api/v1/admin/ontology/skills`,
+    { accessToken },
+  );
+}
+
+export async function listOntologyVersions(accessToken: string) {
+  return apiRequest<{ id: string; version: string; checksum: string; status: string }[]>(
+    `/api/v1/admin/ontology/versions`,
+    { accessToken },
+  );
+}
+
+export async function getOntologyValidation(accessToken: string) {
+  return apiRequest<{ ok: boolean; errors: string[] }>(`/api/v1/admin/ontology/validation`, {
+    accessToken,
+  });
+}
+
+export async function seedOntology(accessToken: string) {
+  return apiRequest<{ id: string; version: string; checksum: string; status: string }>(
+    `/api/v1/admin/ontology/seed`,
+    {
+      method: "POST",
+      accessToken,
+    },
+  );
+}
+
+export async function createOntologySkill(
+  accessToken: string,
+  payload: { canonical_name: string; category?: string; description?: string },
+) {
+  return apiRequest<{ ontology_version: string | null; items: OntologySkill[] }>(
+    `/api/v1/admin/ontology/skills`,
+    { method: "POST", accessToken, json: payload },
+  );
+}
+
+export async function createOntologyAlias(
+  accessToken: string,
+  payload: { skill_id: string; alias: string },
+) {
+  return apiRequest<{ id: string; alias: string }>(`/api/v1/admin/ontology/aliases`, {
+    method: "POST",
+    accessToken,
+    json: payload,
+  });
+}
+
+export async function createOntologyRelation(
+  accessToken: string,
+  payload: {
+    source_skill_id: string;
+    target_skill_id: string;
+    relation: "parent_of" | "related_to" | "similar_to";
+  },
+) {
+  return apiRequest<{ id: string; relation: string }>(`/api/v1/admin/ontology/relations`, {
+    method: "POST",
+    accessToken,
+    json: payload,
+  });
 }

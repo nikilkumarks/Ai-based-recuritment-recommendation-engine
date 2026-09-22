@@ -26,12 +26,13 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title="PRJ_385 API",
-        version="0.7.0",
+        version="0.10.0",
         description=(
             "AI-Based Recruitment Recommendation Engine. "
-            "Phase 7: interpretable baseline matching. "
-            "Baseline scores are not trained ML and not accuracy. "
-            "No ranking or ML training endpoints."
+            "Phase 10: offline XGBoost training, model registry, and safe inference. "
+            "No trained project model until sufficient real labeled data exists. "
+            "Recruiter shortlist/reject decisions are behavioral labels and are not "
+            "ground-truth hiring outcomes."
         ),
         lifespan=lifespan,
     )

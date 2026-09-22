@@ -29,7 +29,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={(event) => void onSubmit(event)} className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--card)] p-6">
+    <form onSubmit={(event) => void onSubmit(event)} className="space-y-3 border border-[var(--border)] bg-[var(--card)] p-5">
       <label className="block text-sm">
         Email
         <input
@@ -38,7 +38,7 @@ export function LoginForm() {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="mt-1 w-full rounded border border-[var(--border)] bg-transparent px-3 py-2"
+          className="mt-1 w-full px-3 py-2"
         />
       </label>
       <label className="block text-sm">
@@ -49,10 +49,10 @@ export function LoginForm() {
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="mt-1 w-full rounded border border-[var(--border)] bg-transparent px-3 py-2"
+          className="mt-1 w-full px-3 py-2"
         />
       </label>
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>

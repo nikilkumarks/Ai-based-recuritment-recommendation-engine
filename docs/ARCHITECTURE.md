@@ -3,7 +3,7 @@
 **Project:** AI-Based Recruitment Recommendation Engine  
 **Domain:** Machine Learning + Analytics  
 **SDG:** SDG 9 — Industry, Innovation and Infrastructure  
-**Status:** Phase 7 baseline matching is implemented. The composer is an interpretable reference system, not a trained ML model. Embeddings provide semantic similarity features. They do not produce the final recruitment score. No ranking or trained models.
+**Status:** Phase 10 offline XGBoost training, model registry, and safe inference are implemented on top of Phase 9 dataset snapshots. Training refuses insufficient real labels. Recruiter shortlist/reject decisions are behavioral labels and are not ground-truth hiring outcomes. No trained project model is produced until sufficient real labeled data exists. Potential is gap closability, not a hiring probability. Embeddings provide semantic similarity features. They do not produce the final recruitment score.
 
 **Innovation:** Semantic and hierarchical skill understanding with potential-aware and explainable recruitment recommendations.
 
@@ -312,14 +312,15 @@ PostgreSQL 16 + `pgvector`. No Neo4j in v1: the skill graph is stored as relatio
 - `embeddings` — owner_type (`resume_chunk|profile|job|skill`), owner_id, model_name, dim, vector, content_hash
 - `match_runs` — candidate_id, job_id, scoring_mode, model_version, current_match, potential, feature_snapshot JSONB, created_at
 - `match_explanations` — match_run_id, traces JSONB
-- `ml_models` — version, artifact_uri, feature_schema_version, metrics JSONB, status (`candidate|active|retired`)
+- `ml_models` — version, artifact_uri, feature_schema_version, metrics JSONB, status (`candidate|active|rejected|retired`)
 - `ml_training_runs` — dataset_snapshot_id, params, metrics, git_sha
 - `feature_snapshots` — frozen feature vectors used for a prediction (audit + training)
 
-**Feedback (future labels)**
+**Feedback (labels for future training)**
 
-- `recruiter_decisions` — recruiter_id, candidate_id, job_id, action (`view|shortlist|reject|compare|hire`), created_at
+- `recruiter_decisions` — append-only `recruiter_id`, `organization_id`, `candidate_id`, `job_id`, `action` (`shortlist|reject|review` plus legacy view/compare/hire), optional `reason`/`note`, `match_run_id`, `feature_snapshot_id`, `created_at`. Behavioral labels, not hiring outcomes. See `docs/DATASET.md`.
 - `candidate_decisions` — save/apply/dismiss
+- `dataset_snapshots` — immutable point-in-time training rows. Phase 10 trains from them only when eligible.
 
 **Analytics**
 
@@ -685,7 +686,7 @@ potential_baseline = 100 * clip(
 )
 ```
 
-A **full match** (no gaps) should yield a high but not automatic 100 potential: remaining headroom uses learning_signal and preference. Document this so recruiters do not treat potential as “seniority.”
+A **full required match** (no required gaps) yields `potential=null` / `potential_status=not_applicable` in the implemented Phase 8 policy. It does **not** assign 100. See `docs/POTENTIAL.md`.
 
 ### 11.2 Trained potential (only after labels)
 
@@ -1076,9 +1077,9 @@ GitHub Actions: test → build images → (optional) deploy
 | 9 | Train XGBoost **if labels exist**; SHAP; model registry | Trained (or remain baseline) |
 | 10 | Hardening, Playwright, report, SDG write-up | Production-ready demo |
 
-Phases 0–7 are sufficient for a defensible demo **without** a trained model, provided the report is honest. Phase 9 is the research increment.
+Phases 0–10 are sufficient for a defensible demo **without** claiming project model accuracy, provided the report is honest when labeled data is insufficient.
 
-Implementation tracking in this repo currently maps **Phase 3** to document I/O, **Phase 4** to §6 NLP extraction (`nlp-v1`), **Phase 5** to §7–§8 ontology (`seed-0.1`), **Phase 6** to §9 embeddings (`embedding-text-v1`), and **Phase 7** to baseline matching (`feature-schema-v1`). Ranking, potential, and ML training remain later. See `docs/MATCHING.md`.
+Implementation tracking in this repo currently maps **Phase 3** to document I/O, **Phase 4** to §6 NLP extraction (`nlp-v1`), **Phase 5** to §7–§8 ontology (`seed-0.1`), **Phase 6** to §9 embeddings (`embedding-text-v1`), **Phase 7** to baseline matching (`feature-schema-v1`), **Phase 8** to heuristic potential (`feature-schema-v2`, `docs/POTENTIAL.md`), **Phase 9** to recruiter decisions and dataset snapshots (`docs/DATASET.md`), and **Phase 10** to offline XGBoost training (`docs/ML_TRAINING.md`). See `docs/MATCHING.md`.
 
 ---
 

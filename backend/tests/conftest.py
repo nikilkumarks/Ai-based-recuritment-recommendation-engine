@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Generator
 from pathlib import Path
 
@@ -27,6 +28,9 @@ from app.core.rate_limit import reset_rate_limiter
 get_settings.cache_clear()
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = BACKEND_ROOT.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 AUTH_ORIGIN = "http://localhost:3000"
 
 
@@ -107,8 +111,12 @@ def client(db_session: Session, blob_store) -> Generator[TestClient, None, None]
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_blob_store] = lambda: blob_store
     reset_rate_limiter()
+    from app.modules.features.runtime import reset_model_cache
+
+    reset_model_cache()
     with TestClient(app) as test_client:
         yield test_client
+    reset_model_cache()
     app.dependency_overrides.clear()
 
 

@@ -75,7 +75,7 @@ class MatchRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
     )
     scoring_mode: Mapped[str] = mapped_column(String(32), nullable=False)
-    model_version: Mapped[str | None] = mapped_column(String(64))
+    model_version: Mapped[str | None] = mapped_column(String(128))
     ontology_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ontology_versions.id", ondelete="RESTRICT")
     )
