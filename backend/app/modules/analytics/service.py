@@ -1,4 +1,4 @@
-﻿"""Descriptive analytics. Not model performance and not hiring success."""
+"""Descriptive analytics. Not model performance and not hiring success."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from app.models import DatasetSnapshot, User
 from app.models.enums import UserRole
 from app.modules.analytics.repository import AnalyticsRepository
 from app.modules.analytics.schemas import (
+    AdminUserListResponse,
+    AdminUserView,
     CountItem,
     DatasetSnapshotDetail,
     DatasetSnapshotSummary,
@@ -65,6 +67,29 @@ class AnalyticsService:
     def admin_skills(self, user: User) -> RecruiterSkillsAnalytics:
         self.authz.require_roles(user, UserRole.ADMIN.value)
         return _skills(self.repo, self.repo.job_ids(None))
+
+    def list_users(self, user: User) -> AdminUserListResponse:
+        self.authz.require_roles(user, UserRole.ADMIN.value)
+        users = self.repo.list_all_users_with_orgs()
+        items = []
+        for u, org_member in users:
+            org_id = org_member.organization_id if org_member else None
+            org_name = org_member.organization.name if org_member and org_member.organization else None
+            m_role = org_member.membership_role if org_member else None
+            items.append(
+                AdminUserView(
+                    id=u.id,
+                    email=u.email,
+                    role=u.role,
+                    status=u.status,
+                    created_at=u.created_at.isoformat() if u.created_at else "",
+                    last_login_at=u.last_login_at.isoformat() if u.last_login_at else None,
+                    organization_id=org_id,
+                    organization_name=org_name,
+                    membership_role=m_role,
+                )
+            )
+        return AdminUserListResponse(items=items, total=len(items))
 
     def candidate_overview(self, user: User, candidate_id: uuid.UUID) -> RecruiterMatchingAnalytics:
         if user.role == UserRole.CANDIDATE.value:

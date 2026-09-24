@@ -10,12 +10,13 @@ from typing import Any
 from app.modules.documents.constants import MIN_USABLE_TEXT_CHARS, OCR_NOT_ENABLED, parser_version
 
 _HEADING_MAP: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("summary", re.compile(r"^(professional\s+)?summary$|^objective$", re.I)),
-    ("experience", re.compile(r"^(work\s+|professional\s+)?experience$|^employment$", re.I)),
-    ("education", re.compile(r"^education$|^academic\s+background$", re.I)),
-    ("projects", re.compile(r"^projects?$", re.I)),
-    ("skills", re.compile(r"^(technical\s+)?skills?$|^technologies$", re.I)),
-    ("certifications", re.compile(r"^certifications?$|^licenses?$", re.I)),
+    ("summary", re.compile(r"^(professional\s+)?summary$|^profile$|^about\s+me$|^(career\s+)?objective$", re.I)),
+    ("experience", re.compile(r"^(work\s+|professional\s+|internship\s+|employment\s+|relevant\s+)?experience$|^(employment|work)\s+history$|^internships$", re.I)),
+    ("education", re.compile(r"^education(al)?(\s+(qualification|background|record|credentials))?$|^academic\s+(background|record)$|^qualifications$", re.I)),
+    ("projects", re.compile(r"^(academic\s+|personal\s+|key\s+|featured\s+|selected\s+|technical\s+)?projects?(\s+experience)?$", re.I)),
+    ("skills", re.compile(r"^(technical\s+|core\s+|key\s+)?skills?(\s+&\s+technologies)?$|^technologies(\s+&\s+tools)?$|^technical\s+expertise$", re.I)),
+    ("certifications", re.compile(r"^certifications?$|^certificates?$|^licenses?$|^professional\s+certifications?$|^(courses|training)\s+&\s+certifications?$", re.I)),
+    ("achievements", re.compile(r"^(key\s+)?achievements$|^honors(\s+&\s+awards)?$|^awards$", re.I)),
 )
 
 
@@ -37,32 +38,37 @@ def normalize_text(raw: str) -> str:
 
 
 def detect_sections(text: str) -> dict[str, str] | None:
-    """Rule-based headings only. If uncertain, return None rather than inventing sections."""
+    """Rule-based headings only."""
     lines = text.split("\n")
     hits: list[tuple[int, str]] = []
     for index, line in enumerate(lines):
         key = _heading_key(line)
         if key:
             hits.append((index, key))
-    if len(hits) < 2:
+    if len(hits) < 1:
         return None
     sections: dict[str, str] = {}
     for i, (start, key) in enumerate(hits):
         end = hits[i + 1][0] if i + 1 < len(hits) else len(lines)
         body = "\n".join(lines[start + 1 : end]).strip()
         if body:
-            sections[key] = body
+            if key in sections:
+                sections[key] = f"{sections[key]}\n\n{body}"
+            else:
+                sections[key] = body
     return sections or None
 
 
 def _heading_key(line: str) -> str | None:
     stripped = line.strip()
-    if not stripped or len(stripped) > 48:
+    if not stripped or len(stripped) > 60:
         return None
-    if "." in stripped[:-1]:
+    cleaned = re.sub(r"^(?:[\d\.\-\*•\[\]]+\s*)+", "", stripped)
+    cleaned = re.sub(r"[\s:\-\#\=]+$", "", cleaned).strip()
+    if not cleaned or len(cleaned) > 48:
         return None
     for key, pattern in _HEADING_MAP:
-        if pattern.fullmatch(stripped):
+        if pattern.fullmatch(cleaned):
             return key
     return None
 

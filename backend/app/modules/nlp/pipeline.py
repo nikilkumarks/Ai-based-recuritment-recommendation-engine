@@ -36,13 +36,25 @@ def extract_profile_draft(text: str, *, parser_version: str | None = None) -> Pr
     if "projects" in sections:
         skills = _merge_skills(skills, extract_skills(projects_text, source_section="projects"))
 
+    exp_list = extract_experience(experience_text) if experience_text else []
+    if not exp_list:
+        exp_list = extract_experience(cleaned)
+
+    proj_list = extract_projects(projects_text) if projects_text else []
+    if not proj_list:
+        proj_list = extract_projects(cleaned)
+
+    edu_list = extract_education(education_text) if education_text else []
+    if not edu_list:
+        edu_list = extract_education(cleaned)
+
     draft = ProfileDraft(
         summary=summary,
         contact=extract_contact(cleaned),
         skills=skills,
-        experience=extract_experience(experience_text) if experience_text else [],
-        education=extract_education(education_text) if education_text else [],
-        projects=extract_projects(projects_text) if projects_text else [],
+        experience=exp_list,
+        education=edu_list,
+        projects=proj_list,
         certifications=extract_certifications(certs_text) if certs_text else [],
         sections=sections,
         nlp_pipeline_version=nlp_version(),

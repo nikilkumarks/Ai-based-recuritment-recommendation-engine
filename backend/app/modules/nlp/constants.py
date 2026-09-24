@@ -88,9 +88,90 @@ GENERIC_NON_SKILLS = frozenset(
         "engineering",
         "candidate",
         "resume",
+        "employed",
+        "self-employed",
+        "remote",
+        "present",
+        "current",
+        "ongoing",
+        "now",
+        "intern",
+        "internship",
+        "freelance",
+        "developer",
+        "description",
+        "details",
+        "location",
+        "period",
+    }
+)
+
+METADATA_NON_SKILL_TOKENS = frozenset(
+    {
+        "employed",
+        "self-employed",
+        "employed remote",
+        "remote",
+        "present",
+        "current",
+        "ongoing",
+        "now",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "jun",
+        "jul",
+        "aug",
+        "sep",
+        "oct",
+        "nov",
+        "dec",
+        "intern",
+        "internship",
+        "freelance",
+        "developer",
+        "engineer",
+        "full stack",
+        "full stack developer",
+        "frontend developer",
+        "backend developer",
+        "location",
+        "period",
+        "description",
+        "details",
     }
 )
 
 
+def is_metadata_or_non_skill(text: str) -> bool:
+    import re
+    from app.modules.nlp.lexicon import surface_normalize
+
+    norm = surface_normalize(text)
+    if not norm or norm in GENERIC_NON_SKILLS or norm in METADATA_NON_SKILL_TOKENS:
+        return True
+    if "employed" in norm or "self-employed" in norm:
+        return True
+    if re.search(r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b", norm):
+        return True
+    if re.match(r"^\d{4}(\s*[\-–]\s*\d{4})?$", norm):
+        return True
+    return False
+
+
 def nlp_version() -> str:
     return get_settings().nlp_pipeline_version
+

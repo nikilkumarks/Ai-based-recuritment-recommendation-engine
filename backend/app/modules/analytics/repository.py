@@ -1,4 +1,4 @@
-﻿"""SQL aggregations for descriptive analytics. No model metrics."""
+"""SQL aggregations for descriptive analytics. No model metrics."""
 
 from __future__ import annotations
 
@@ -198,3 +198,16 @@ class AnalyticsRepository:
             .where(MatchRun.candidate_id == candidate_id)
         )
         return [row or {} for row in self.db.scalars(stmt).all()]
+
+    def list_all_users_with_orgs(self) -> list[tuple[Any, Any]]:
+        from sqlalchemy.orm import selectinload
+        from app.models import OrganizationMember, User
+
+        stmt = (
+            select(User, OrganizationMember)
+            .outerjoin(OrganizationMember, User.id == OrganizationMember.user_id)
+            .options(selectinload(OrganizationMember.organization))
+            .order_by(User.created_at.desc())
+        )
+        return list(self.db.execute(stmt).all())
+

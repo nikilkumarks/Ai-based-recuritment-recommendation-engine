@@ -1,4 +1,4 @@
-﻿"""Analytics and admin dataset HTTP. Descriptive only; does not train models."""
+"""Analytics and admin dataset HTTP. Descriptive only; does not train models."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.models import User
 from app.modules.analytics.schemas import (
+    AdminUserListResponse,
     DatasetSnapshotDetail,
     DatasetSnapshotSummary,
     FunnelAnalytics,
@@ -74,6 +75,14 @@ def admin_skills(
     service: AnalyticsService = Depends(get_analytics_service),
 ) -> RecruiterSkillsAnalytics:
     return service.admin_skills(user)
+
+
+@router.get("/admin/users", response_model=AdminUserListResponse)
+def list_admin_users(
+    user: User = Depends(get_current_active_user),
+    service: AnalyticsService = Depends(get_analytics_service),
+) -> AdminUserListResponse:
+    return service.list_users(user)
 
 
 @router.get("/analytics/candidates/{candidate_id}/overview", response_model=RecruiterMatchingAnalytics)

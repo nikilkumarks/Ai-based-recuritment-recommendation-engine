@@ -14,9 +14,13 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import {
+  createApplication,
+  createCandidateDecision,
+  getCandidateApplication,
   getCandidateJobMatch,
   listCandidateJobs,
   simulateAddSkill,
+  type ApplicationView,
   type CounterfactualResult,
   type MatchResult,
 } from "@/lib/api";
@@ -28,25 +32,59 @@ export function CandidateJobMatchDetail({ jobId }: { jobId: string }) {
   const { accessToken, user } = useAuth();
   const [match, setMatch] = useState<MatchResult | null>(null);
   const [title, setTitle] = useState<string | null>(null);
+  const [application, setApplication] = useState<ApplicationView | null>(null);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [counterfactual, setCounterfactual] = useState<CounterfactualResult | null>(null);
   const [busySkill, setBusySkill] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!accessToken || !user?.candidate_id) {
       return;
     }
-    const [detail, listed] = await Promise.all([
+    const [detail, listed, app] = await Promise.all([
       getCandidateJobMatch(user.candidate_id, jobId, accessToken),
       listCandidateJobs(user.candidate_id, accessToken).catch(() => null),
+      getCandidateApplication(user.candidate_id, jobId, accessToken).catch(() => null),
     ]);
     setMatch(detail);
     setTitle(listed?.items.find((item) => item.job_id === jobId)?.job_title ?? null);
+    setApplication(app);
   }, [accessToken, jobId, user?.candidate_id]);
 
   useEffect(() => {
     void load().catch((err) => setError(describeHttpError(err, describeAuthError(err))));
   }, [load]);
+
+  async function handleApply() {
+    if (!accessToken || !user?.candidate_id) return;
+    setActionBusy(true);
+    setError(null);
+    try {
+      const app = await createApplication(user.candidate_id, jobId, accessToken);
+      setApplication(app);
+      setActionStatus("Successfully submitted application!");
+    } catch (err) {
+      setError(describeHttpError(err, describeAuthError(err)));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleDecision(action: "save" | "dismiss") {
+    if (!accessToken || !user?.candidate_id) return;
+    setActionBusy(true);
+    setError(null);
+    try {
+      await createCandidateDecision(user.candidate_id, jobId, action, accessToken);
+      setActionStatus(action === "save" ? "Job saved to your list." : "Job dismissed.");
+    } catch (err) {
+      setError(describeHttpError(err, describeAuthError(err)));
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   async function simulate(skillId: string) {
     if (!accessToken || !user?.candidate_id) {
@@ -78,8 +116,46 @@ export function CandidateJobMatchDetail({ jobId }: { jobId: string }) {
       <PageHeader
         title={title ?? "Job match"}
         description="Current Match is what you already satisfy. Potential is how closable remaining gaps are — not a hiring probability."
+        actions={
+          <div className="flex items-center gap-2">
+            {application ? (
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                Applied ({application.status})
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                disabled={actionBusy}
+                onClick={() => void handleApply()}
+              >
+                {actionBusy ? "Applying..." : "Apply Now"}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={actionBusy}
+              onClick={() => void handleDecision("save")}
+            >
+              Save Job
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={actionBusy}
+              onClick={() => void handleDecision("dismiss")}
+            >
+              Dismiss
+            </Button>
+          </div>
+        }
       />
       {error ? <Alert>{error}</Alert> : null}
+      {actionStatus ? <Alert tone="success">{actionStatus}</Alert> : null}
       <ScoringModeNotice
         mode={match.scoring_mode}
         modelVersion={match.model_version}

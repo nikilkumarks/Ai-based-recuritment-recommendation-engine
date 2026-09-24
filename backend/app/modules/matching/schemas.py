@@ -1,4 +1,4 @@
-﻿"""Match result DTOs. Not SQLAlchemy models. Score range is 0.0–1.0 only."""
+"""Match result DTOs. Not SQLAlchemy models. Score range is 0.0–1.0 only."""
 
 from __future__ import annotations
 
@@ -106,7 +106,10 @@ class JobCandidateMatchSummary(BaseModel):
     model_version: str | None = None
     model_relevance_score: float | None = Field(default=None, ge=0.0, le=1.0)
     current_decision: str | None = None
+    is_applicant: bool = False
+    application_status: str | None = None
     sort_note: str = "baseline_current_match_desc"
+
 
 
 class JobCandidateListResponse(BaseModel):

@@ -1,4 +1,4 @@
-﻿"""Matching orchestrator. Baseline composer plus optional trained shortlist score."""
+"""Matching orchestrator. Baseline composer plus optional trained shortlist score."""
 
 from __future__ import annotations
 
@@ -154,8 +154,10 @@ class MatchingService:
             identifier = candidate.user.email if candidate.user is not None else str(candidate.id)
             scored.append((candidate, result, identifier))
         latest = self.decisions.latest_for_pairs(job.id, [row[0].id for row in scored])
+        latest_apps = self.decisions.applications_map_for_job(job.id)
         for candidate, result, identifier in scored:
             current = latest.get(candidate.id)
+            app = latest_apps.get(candidate.id)
             items.append(
                 JobCandidateMatchSummary(
                     candidate_id=candidate.id,
@@ -171,6 +173,8 @@ class MatchingService:
                     model_version=result.model_version,
                     model_relevance_score=result.model_relevance_score,
                     current_decision=current.action if current is not None else None,
+                    is_applicant=app is not None,
+                    application_status=app.status if app is not None else None,
                     sort_note=(
                         "trained_model_relevance_desc"
                         if result.scoring_mode == SCORING_MODE_TRAINED

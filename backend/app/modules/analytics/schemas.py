@@ -1,7 +1,8 @@
-﻿"""Analytics DTOs. Descriptive counts only; not model accuracy."""
+"""Analytics DTOs. Descriptive counts only; not model accuracy."""
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -112,3 +113,21 @@ class MlModelSummary(BaseModel):
     test_fixture_only: bool = False
     warning: str | None = None
     target_note: str
+
+
+class AdminUserView(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: str
+    status: str
+    created_at: str
+    last_login_at: str | None = None
+    organization_id: uuid.UUID | None = None
+    organization_name: str | None = None
+    membership_role: str | None = None
+
+
+class AdminUserListResponse(BaseModel):
+    items: list[AdminUserView]
+    total: int
+

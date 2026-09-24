@@ -1,4 +1,4 @@
-﻿"""Ontology service: seed, resolve, persist, admin. Not NLP and not matching."""
+"""Ontology service: seed, resolve, persist, admin. Not NLP and not matching."""
 
 from __future__ import annotations
 
@@ -245,6 +245,20 @@ class OntologyService:
             ontology_version=active.version if active else None,
             items=[_skill_view(item) for item in self.repo.list_skills()],
         )
+
+    def search_skills(self, query: str, limit: int = 20) -> list[SkillView]:
+        q = (query or "").strip().casefold()
+        skills = self.repo.list_skills()
+        if not q:
+            return [_skill_view(item) for item in skills[:limit]]
+        matched: list[Skill] = []
+        for skill in skills:
+            if q in skill.canonical_name.casefold() or q in skill.slug.casefold():
+                matched.append(skill)
+                if len(matched) >= limit:
+                    break
+        return [_skill_view(item) for item in matched]
+
 
     def list_versions(self) -> list[OntologyVersionView]:
         return [_version_view(item) for item in self.repo.list_versions()]

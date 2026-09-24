@@ -1,4 +1,4 @@
-﻿"""Recruiter decision DTOs. Notes are recruiter-private."""
+"""Recruiter decision DTOs. Notes are recruiter-private."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-DecisionAction = Literal["shortlist", "reject", "review"]
+DecisionAction = Literal["shortlist", "reject", "review", "hire"]
 ReasonCode = Literal[
     "skill_gap",
     "experience_gap",
@@ -50,3 +50,37 @@ class RecruiterDecisionListResponse(BaseModel):
         "Recruiter decisions are behavioral labels reflecting recruiter actions, "
         "not ground-truth hiring outcomes."
     )
+
+
+class ApplicationCreate(BaseModel):
+    job_id: uuid.UUID
+
+
+class ApplicationView(BaseModel):
+    id: uuid.UUID
+    candidate_id: uuid.UUID
+    job_id: uuid.UUID
+    job_title: str
+    job_status: str
+    status: str
+    applied_at: datetime
+
+
+class ApplicationListResponse(BaseModel):
+    items: list[ApplicationView]
+
+
+CandidateDecisionActionLiteral = Literal["save", "apply", "dismiss"]
+
+
+class CandidateDecisionCreate(BaseModel):
+    action: CandidateDecisionActionLiteral
+
+
+class CandidateDecisionView(BaseModel):
+    id: uuid.UUID
+    candidate_id: uuid.UUID
+    job_id: uuid.UUID
+    action: str
+    created_at: datetime
+

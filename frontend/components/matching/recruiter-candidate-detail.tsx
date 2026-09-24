@@ -39,7 +39,7 @@ export function RecruiterCandidateDetail({
   const [row, setRow] = useState<JobCandidateMatchSummary | null>(null);
   const [history, setHistory] = useState<RecruiterDecisionList | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<"shortlist" | "reject" | null>(null);
+  const [pending, setPending] = useState<"shortlist" | "reject" | "review" | "hire" | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -60,7 +60,7 @@ export function RecruiterCandidateDetail({
     void load().catch((err) => setError(describeHttpError(err, describeAuthError(err))));
   }, [load]);
 
-  async function decide(action: "shortlist" | "reject") {
+  async function decide(action: "shortlist" | "reject" | "review" | "hire") {
     if (!accessToken) {
       return;
     }
@@ -104,8 +104,20 @@ export function RecruiterCandidateDetail({
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-[var(--muted)]">Decision</span>
         <DecisionBadge action={history?.current_action ?? row?.current_decision} />
+        {row?.is_applicant ? (
+          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+            Applicant ({row.application_status ?? "Applied"})
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800/60 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+            Discovered Candidate
+          </span>
+        )}
         <Button type="button" size="sm" variant="success" onClick={() => setPending("shortlist")}>
           Shortlist
+        </Button>
+        <Button type="button" size="sm" variant="default" onClick={() => setPending("hire")}>
+          Hire
         </Button>
         <Button type="button" size="sm" variant="danger" onClick={() => setPending("reject")}>
           Reject

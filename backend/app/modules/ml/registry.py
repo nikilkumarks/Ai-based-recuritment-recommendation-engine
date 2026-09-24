@@ -76,6 +76,8 @@ def activate_model(db: Session, *, actor_id: uuid.UUID, model_id: uuid.UUID) -> 
     for active in current_active:
         if active.id != row.id:
             active.status = MlModelStatus.RETIRED.value
+    if current_active:
+        db.flush()
     row.status = MlModelStatus.ACTIVE.value
     row.activated_at = now
     db.flush()

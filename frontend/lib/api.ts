@@ -225,14 +225,25 @@ export type ProfileDraft = {
     employer: string | null;
     description: string | null;
     start_date: string | null;
+    end_date: string | null;
     is_current: boolean;
+    evidence?: { value?: string; evidence?: string }[];
   }[];
   education: {
     institution: string | null;
     degree: string | null;
     field_of_study: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    evidence?: { value?: string; evidence?: string }[];
   }[];
-  projects: { name: string | null; description: string | null; url: string | null }[];
+  projects: {
+    name: string | null;
+    description: string | null;
+    url: string | null;
+    technologies?: SkillMention[];
+    evidence?: { value?: string; evidence?: string }[];
+  }[];
   certifications: { name: string | null; issuing_organization: string | null }[];
   nlp_pipeline_version: string;
   warnings: string[];
@@ -482,6 +493,8 @@ export type JobCandidateMatchSummary = {
   model_version: string | null;
   model_relevance_score: number | null;
   current_decision: string | null;
+  is_applicant?: boolean;
+  application_status?: string | null;
 };
 
 export type RecruiterDecisionView = {
@@ -555,7 +568,7 @@ export async function createRecruiterDecision(
   jobId: string,
   candidateId: string,
   accessToken: string,
-  body: { action: "shortlist" | "reject" | "review"; reason?: string; note?: string },
+  body: { action: "shortlist" | "reject" | "review" | "hire"; reason?: string; note?: string },
 ) {
   return apiRequest<RecruiterDecisionView>(
     `/api/v1/jobs/${jobId}/candidates/${candidateId}/decisions`,
@@ -803,3 +816,111 @@ export async function createOntologyRelation(
     json: payload,
   });
 }
+
+export type ApplicationView = {
+  id: string;
+  candidate_id: string;
+  job_id: string;
+  status: string;
+  applied_at: string;
+  job_title?: string | null;
+  organization_name?: string | null;
+};
+
+export type CandidateDecisionView = {
+  id: string;
+  candidate_id: string;
+  job_id: string;
+  action: string;
+  note?: string | null;
+  created_at: string;
+};
+
+export type AdminUserView = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: string;
+  last_login_at?: string | null;
+  organization_id?: string | null;
+  organization_name?: string | null;
+  membership_role?: string | null;
+};
+
+export async function createApplication(candidateId: string, jobId: string, accessToken: string) {
+  return apiRequest<ApplicationView>(`/api/v1/candidates/${candidateId}/applications`, {
+    method: "POST",
+    accessToken,
+    json: { job_id: jobId },
+  });
+}
+
+export async function listCandidateApplications(candidateId: string, accessToken: string) {
+  return apiRequest<{ items: ApplicationView[]; total: number }>(
+    `/api/v1/candidates/${candidateId}/applications`,
+    { accessToken },
+  );
+}
+
+export async function getCandidateApplication(candidateId: string, jobId: string, accessToken: string) {
+  return apiRequest<ApplicationView | null>(
+    `/api/v1/candidates/${candidateId}/jobs/${jobId}/application`,
+    { accessToken },
+  );
+}
+
+export async function createCandidateDecision(
+  candidateId: string,
+  jobId: string,
+  action: "apply" | "save" | "dismiss",
+  accessToken: string,
+  note?: string,
+) {
+  return apiRequest<CandidateDecisionView>(
+    `/api/v1/candidates/${candidateId}/jobs/${jobId}/decisions`,
+    {
+      method: "POST",
+      accessToken,
+      json: { action, note },
+    },
+  );
+}
+
+export async function listSavedJobs(candidateId: string, accessToken: string) {
+  return apiRequest<{ items: JobSummary[] }>(`/api/v1/candidates/${candidateId}/saved-jobs`, {
+    accessToken,
+  });
+}
+
+export async function searchOntologySkills(query: string, accessToken: string) {
+  return apiRequest<OntologySkill[]>(
+    `/api/v1/ontology/search?q=${encodeURIComponent(query)}`,
+    { accessToken },
+  );
+}
+
+export async function addCandidateSkill(candidateId: string, skillIdentifier: string, accessToken: string) {
+  return apiRequest<ProfileView>(`/api/v1/candidates/${candidateId}/profile/skills`, {
+    method: "POST",
+    accessToken,
+    json: { skill: skillIdentifier, skill_identifier: skillIdentifier },
+  });
+}
+
+export async function removeCandidateSkill(candidateId: string, skillIdentifier: string, accessToken: string) {
+  return apiRequest<ProfileView>(
+    `/api/v1/candidates/${candidateId}/profile/skills/${encodeURIComponent(skillIdentifier)}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
+}
+
+export async function listAdminUsers(accessToken: string) {
+  return apiRequest<{ items: AdminUserView[]; total: number }>(`/api/v1/admin/users`, {
+    accessToken,
+  });
+}
+

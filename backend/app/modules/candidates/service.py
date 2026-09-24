@@ -1,4 +1,4 @@
-﻿"""Candidate profile confirmation. Confirmed rows are the future matching source of truth."""
+"""Candidate profile confirmation. Confirmed rows are the future matching source of truth."""
 
 from __future__ import annotations
 
@@ -79,6 +79,87 @@ class CandidateService:
         )
         self.db.flush()
         return _to_view(draft)
+
+    def add_manual_skill(self, *, user: User, candidate_id: uuid.UUID, skill_text: str) -> ProfileView:
+        self.require_owner(user, candidate_id)
+        clean_text = skill_text.strip()
+        if not clean_text:
+            raise ConflictError("Skill text cannot be empty.")
+            
+        draft = self.repo.latest_profile(candidate_id, status=ConfirmationStatus.DRAFT.value)
+        confirmed = self.repo.latest_profile(candidate_id, status=ConfirmationStatus.CONFIRMED.value)
+        
+        profiles_to_update = [p for p in (draft, confirmed) if p is not None]
+        if not profiles_to_update:
+            draft = CandidateProfile(
+                candidate_id=candidate_id,
+                profile_version=1,
+                confirmation_status=ConfirmationStatus.DRAFT.value,
+                extracted_payload={"skills": []},
+            )
+            draft = self.repo.add_profile(draft)
+            profiles_to_update.append(draft)
+
+        for prof in profiles_to_update:
+            payload = dict(prof.extracted_payload or {})
+            skills = list(payload.get("skills") or [])
+            if not any(str(s.get("raw_text") or "").casefold() == clean_text.casefold() for s in skills):
+                skills.append({
+                    "raw_text": clean_text,
+                    "normalized_text": clean_text.lower(),
+                    "source_section": "manual",
+                    "evidence": f"Manually added skill: {clean_text}",
+                    "extraction_confidence": 1.0,
+                })
+                payload["skills"] = skills
+                prof.extracted_payload = payload
+                flag_modified(prof, "extracted_payload")
+                self.ontology.annotate_profile(prof)
+                if prof.confirmation_status == ConfirmationStatus.CONFIRMED.value:
+                    self.ontology.persist_confirmed_profile_skills(prof)
+        
+        self.db.flush()
+        target_profile = draft if draft is not None else confirmed
+        return _to_view(target_profile)
+
+    def remove_manual_skill(self, *, user: User, candidate_id: uuid.UUID, skill_identifier: str) -> ProfileView:
+        self.require_owner(user, candidate_id)
+        target = skill_identifier.strip().casefold()
+        
+        draft = self.repo.latest_profile(candidate_id, status=ConfirmationStatus.DRAFT.value)
+        confirmed = self.repo.latest_profile(candidate_id, status=ConfirmationStatus.CONFIRMED.value)
+        
+        profiles_to_update = [p for p in (draft, confirmed) if p is not None]
+        if not profiles_to_update:
+            raise NotFoundError("No candidate profile found.")
+
+        for prof in profiles_to_update:
+            payload = dict(prof.extracted_payload or {})
+            skills = list(payload.get("skills") or [])
+            norm_skills = list(payload.get("normalized_skills") or [])
+            
+            filtered_skills = [
+                s for s in skills
+                if str(s.get("raw_text") or "").casefold() != target
+            ]
+            filtered_norm = [
+                s for s in norm_skills
+                if str(s.get("raw_text") or "").casefold() != target
+                and str(s.get("canonical_skill_id") or "").casefold() != target
+                and str(s.get("canonical_skill_name") or "").casefold() != target
+            ]
+            payload["skills"] = filtered_skills
+            payload["normalized_skills"] = filtered_norm
+            prof.extracted_payload = payload
+            flag_modified(prof, "extracted_payload")
+            if prof.confirmation_status == ConfirmationStatus.CONFIRMED.value:
+                self.ontology.persist_confirmed_profile_skills(prof)
+                
+        self.db.flush()
+        target_profile = draft if draft is not None else confirmed
+        return _to_view(target_profile)
+
+
 
     def confirm(self, *, user: User, candidate_id: uuid.UUID) -> ProfileView:
         self.require_owner(user, candidate_id)

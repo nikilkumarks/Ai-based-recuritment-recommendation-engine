@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { describeAuthError, useAuth } from "@/components/auth/auth-provider";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { CountBars, DistributionBars, FunnelBars } from "@/components/ui/count-bars";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import {
   getAdminOverview,
@@ -21,6 +19,7 @@ import {
   type RecruiterSkillsAnalytics,
 } from "@/lib/api";
 import { describeHttpError } from "@/lib/http-error";
+import { Info } from "lucide-react";
 
 export function RecruiterAnalyticsPanel({ scope = "recruiter" }: { scope?: "recruiter" | "admin" }) {
   const { accessToken } = useAuth();
@@ -71,12 +70,20 @@ export function RecruiterAnalyticsPanel({ scope = "recruiter" }: { scope?: "recr
   const noActivity = overview.applications === 0 && overview.shortlist_count === 0 && overview.reject_count === 0;
 
   return (
-    <div>
-      <PageHeader
-        title="Analytics"
-        description="Descriptive counts from this workspace. Shortlist is not a hire. No model accuracy is shown."
-      />
-      <p className="mb-4 text-sm text-[var(--muted)]">{overview.disclaimer}</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="border-b border-slate-200/80 pb-5">
+        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">System Analytics</h1>
+        <p className="text-xs text-slate-500 mt-1 font-medium">
+          Descriptive activity counts and skill demand/supply distribution.
+        </p>
+      </div>
+
+      <div className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-slate-100/60 p-3.5 text-xs text-slate-700 font-medium">
+        <Info className="h-4 w-4 shrink-0 text-slate-500 mt-0.5" />
+        <p className="leading-relaxed">{overview.disclaimer}</p>
+      </div>
+
       {noActivity ? (
         <EmptyState
           className="mb-4"
@@ -84,7 +91,9 @@ export function RecruiterAnalyticsPanel({ scope = "recruiter" }: { scope?: "recr
           description="Charts appear when jobs, applications, or decisions exist."
         />
       ) : null}
-      <div className="mb-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+
+      {/* KPI Metrics */}
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Metric label="Jobs" value={overview.jobs} />
         <Metric label="Candidates" value={overview.candidates} />
         <Metric label="Applications" value={overview.applications} />
@@ -92,52 +101,62 @@ export function RecruiterAnalyticsPanel({ scope = "recruiter" }: { scope?: "recr
         <Metric label="Shortlisted" value={overview.shortlist_count} />
         <Metric label="Rejected" value={overview.reject_count} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+
+      {/* Charts Grid */}
+      <div className="grid gap-6 lg:grid-cols-2">
         {funnel ? (
-          <Card>
-            <CardHeader title="Decision funnel" />
-            <CardBody>
-              <FunnelBars
-                applications={funnel.applications}
-                reviewed={funnel.reviewed}
-                shortlisted={funnel.shortlisted}
-                rejected={funnel.rejected}
-              />
-            </CardBody>
-          </Card>
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Decision Funnel</h3>
+            </div>
+            <FunnelBars
+              applications={funnel.applications}
+              reviewed={funnel.reviewed}
+              shortlisted={funnel.shortlisted}
+              rejected={funnel.rejected}
+            />
+          </div>
         ) : null}
-        <Card>
-          <CardHeader title="Skill demand" description="Most requested required skills." />
-          <CardBody>
-            <CountBars items={skills.required_demand} empty="No confirmed required skills yet." />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Skill supply" description="Candidate skill availability." />
-          <CardBody>
-            <CountBars items={skills.candidate_supply} empty="No confirmed candidate skills yet." />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Common skill gaps" />
-          <CardBody>
-            <CountBars items={skills.top_missing_skills} empty="No gap traces yet." />
-          </CardBody>
-        </Card>
+
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900">Skill Demand</h3>
+            <p className="text-xs text-slate-500">Most requested required skills across job requisitions.</p>
+          </div>
+          <CountBars items={skills.required_demand} empty="No confirmed required skills yet." />
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900">Skill Supply</h3>
+            <p className="text-xs text-slate-500">Candidate skill availability across confirmed profiles.</p>
+          </div>
+          <CountBars items={skills.candidate_supply} empty="No confirmed candidate skills yet." />
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="text-base font-bold text-slate-900">Common Skill Gaps</h3>
+            <p className="text-xs text-slate-500">Most frequent missing requirements across matches.</p>
+          </div>
+          <CountBars items={skills.top_missing_skills} empty="No gap traces yet." />
+        </div>
+
         {matching ? (
           <>
-            <Card>
-              <CardHeader title="Current Match distribution" />
-              <CardBody>
-                <DistributionBars items={matching.current_match} empty="No match runs yet." />
-              </CardBody>
-            </Card>
-            <Card>
-              <CardHeader title="Potential distribution" />
-              <CardBody>
-                <DistributionBars items={matching.potential} empty="No potential scores yet." />
-              </CardBody>
-            </Card>
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-base font-bold text-slate-900">Current Match Distribution</h3>
+              </div>
+              <DistributionBars items={matching.current_match} empty="No match runs yet." />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-base font-bold text-slate-900">Potential Distribution</h3>
+              </div>
+              <DistributionBars items={matching.potential} empty="No potential scores yet." />
+            </div>
           </>
         ) : null}
       </div>
@@ -147,9 +166,10 @@ export function RecruiterAnalyticsPanel({ scope = "recruiter" }: { scope?: "recr
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="border border-[var(--border)] bg-[var(--card)] px-3 py-3">
-      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">{label}</p>
-      <p className="tabular mt-1 text-xl font-semibold">{value}</p>
+    <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-2xs space-y-1">
+      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-500">{label}</p>
+      <p className="font-mono text-2xl font-extrabold text-slate-900">{value}</p>
     </div>
   );
 }
+

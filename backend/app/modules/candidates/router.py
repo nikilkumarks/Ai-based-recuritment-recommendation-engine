@@ -1,4 +1,4 @@
-﻿"""HTTP routes for candidate profile draft, edit, and confirmation."""
+"""HTTP routes for candidate profile draft, edit, and confirmation."""
 
 from __future__ import annotations
 
@@ -9,15 +9,21 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.models import User
-from app.modules.candidates.schemas import ProfileResponse, ProfileUpdate, ProfileView
+from app.modules.candidates.schemas import ManualSkillAddRequest, ProfileResponse, ProfileUpdate, ProfileView
 from app.modules.candidates.service import CandidateService
 from app.modules.identity.dependencies import get_current_active_user
+from app.modules.ontology.schemas import SkillView
+from app.modules.ontology.service import OntologyService
 
 router = APIRouter(tags=["profiles"])
 
 
 def get_candidate_service(db: Session = Depends(get_db)) -> CandidateService:
     return CandidateService(db)
+
+
+def get_ontology_service(db: Session = Depends(get_db)) -> OntologyService:
+    return OntologyService(db)
 
 
 @router.get("/candidates/{candidate_id}/profile", response_model=ProfileResponse)
@@ -48,6 +54,36 @@ def confirm_profile(
     return service.confirm(user=user, candidate_id=candidate_id)
 
 
+@router.post("/candidates/{candidate_id}/profile/skills", response_model=ProfileView)
+def add_manual_skill(
+    candidate_id: uuid.UUID,
+    payload: ManualSkillAddRequest,
+    user: User = Depends(get_current_active_user),
+    service: CandidateService = Depends(get_candidate_service),
+) -> ProfileView:
+    return service.add_manual_skill(user=user, candidate_id=candidate_id, skill_text=payload.skill_text)
+
+
+@router.delete("/candidates/{candidate_id}/profile/skills/{skill_identifier}", response_model=ProfileView)
+def remove_manual_skill(
+    candidate_id: uuid.UUID,
+    skill_identifier: str,
+    user: User = Depends(get_current_active_user),
+    service: CandidateService = Depends(get_candidate_service),
+) -> ProfileView:
+    return service.remove_manual_skill(user=user, candidate_id=candidate_id, skill_identifier=skill_identifier)
+
+
+@router.get("/ontology/search", response_model=list[SkillView])
+def search_ontology_skills(
+    q: str = "",
+    limit: int = 20,
+    _: User = Depends(get_current_active_user),
+    service: OntologyService = Depends(get_ontology_service),
+) -> list[SkillView]:
+    return service.search_skills(query=q, limit=limit)
+
+
 @router.post("/candidates/{candidate_id}/resumes/{resume_id}/extract", response_model=ProfileView)
 def extract_resume_nlp(
     candidate_id: uuid.UUID,
@@ -56,3 +92,4 @@ def extract_resume_nlp(
     service: CandidateService = Depends(get_candidate_service),
 ) -> ProfileView:
     return service.rerun_resume_nlp(user=user, candidate_id=candidate_id, resume_id=resume_id)
+

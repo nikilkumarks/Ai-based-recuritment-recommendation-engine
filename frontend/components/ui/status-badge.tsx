@@ -26,6 +26,9 @@ export function ConfirmationBadge({ status }: { status: string | null | undefine
 }
 
 export function DecisionBadge({ action }: { action: string | null | undefined }) {
+  if (action === "hire" || action === "hired") {
+    return <Badge tone="success">Hired</Badge>;
+  }
   if (action === "shortlist" || action === "shortlisted") {
     return <Badge tone="success">Shortlisted</Badge>;
   }

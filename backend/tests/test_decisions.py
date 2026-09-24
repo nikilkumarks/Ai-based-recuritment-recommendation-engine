@@ -244,5 +244,5 @@ def test_review_is_not_a_binary_label(
         headers=bearer(rec_token),
         json={"action": "hire"},
     )
-    assert hire.status_code in {422, 400}
+    assert hire.status_code == 201
     assert db_session.query(MatchRun).count() >= 1

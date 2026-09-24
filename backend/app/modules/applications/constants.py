@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-PRODUCT_ACTIONS = ("shortlist", "reject", "review")
+PRODUCT_ACTIONS = ("shortlist", "reject", "review", "hire")
 BINARY_ACTIONS = ("shortlist", "reject")
 REASON_CODES = (
     "skill_gap",
@@ -17,4 +17,6 @@ REASON_CODES = (
 RECRUITER_SHORTLISTED = "recruiter_shortlisted"
 RECRUITER_REJECTED = "recruiter_rejected"
 RECRUITER_REVIEWED = "recruiter_reviewed"
+RECRUITER_HIRED = "recruiter_hired"
 DATASET_SNAPSHOT_CREATED = "dataset_snapshot_created"
+

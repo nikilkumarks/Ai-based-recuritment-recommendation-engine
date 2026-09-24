@@ -10,7 +10,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)]",
+        "rounded-2xl border border-slate-200/90 bg-white shadow-xs",
         className,
       )}
     >
@@ -26,7 +26,7 @@ export function CardBody({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("p-4 sm:p-5", className)}>{children}</div>;
+  return <div className={cn("p-5 sm:p-6", className)}>{children}</div>;
 }
 
 export function CardHeader({
@@ -39,12 +39,13 @@ export function CardHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] px-4 py-3 sm:px-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
       <div>
-        <h2 className="text-[15px] font-semibold">{title}</h2>
-        {description ? <p className="mt-0.5 text-sm text-[var(--muted)]">{description}</p> : null}
+        <h2 className="text-base font-bold text-slate-900 tracking-tight">{title}</h2>
+        {description ? <p className="mt-0.5 text-xs text-slate-500 font-medium">{description}</p> : null}
       </div>
       {action}
     </div>
   );
 }
+

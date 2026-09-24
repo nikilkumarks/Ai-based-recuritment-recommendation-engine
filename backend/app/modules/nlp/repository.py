@@ -1,4 +1,4 @@
-﻿"""Persistence for NLP drafts on candidate profiles and job requirements."""
+"""Persistence for NLP drafts on candidate profiles and job requirements."""
 
 from __future__ import annotations
 
@@ -60,6 +60,9 @@ class NlpRepository:
         if status is not None:
             stmt = stmt.where(CandidateProfile.confirmation_status == status)
         return self.db.scalar(stmt.limit(1))
+
+    def latest_confirmed_profile(self, candidate_id: uuid.UUID) -> CandidateProfile | None:
+        return self.latest_profile(candidate_id, status="confirmed")
 
     def max_profile_version(self, candidate_id: uuid.UUID) -> int:
         current = self.db.scalar(

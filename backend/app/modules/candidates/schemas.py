@@ -1,4 +1,4 @@
-﻿"""Candidate profile DTOs for draft review and confirmation."""
+"""Candidate profile DTOs for draft review and confirmation."""
 
 from __future__ import annotations
 
@@ -11,6 +11,15 @@ from app.modules.nlp.schemas import ProfileDraft
 from app.modules.ontology.schemas import SkillNormalizationResult
 
 
+class ManualSkillAddRequest(BaseModel):
+    skill: str | None = None
+    skill_identifier: str | None = None
+
+    @property
+    def skill_text(self) -> str:
+        return (self.skill or self.skill_identifier or "").strip()
+
+
 class ProfileUpdate(BaseModel):
     """Candidate edits to a draft. Skills remain raw mentions."""
 
@@ -21,6 +30,7 @@ class ProfileUpdate(BaseModel):
     projects: list[dict] | None = None
     certifications: list[dict] | None = None
     contact: dict | None = None
+
 
 
 class ProfileView(BaseModel):
