@@ -18,7 +18,7 @@ export default async function LoginPage({
           <div className="flex items-center gap-3">
             <Image
               src="/Logo.jpeg"
-              alt="SkillMatch Logo"
+              alt="SkillMatch Logo updated"
               width={40}
               height={40}
               className="h-10 w-10 rounded-xl object-cover border border-slate-200 shadow-2xs"
