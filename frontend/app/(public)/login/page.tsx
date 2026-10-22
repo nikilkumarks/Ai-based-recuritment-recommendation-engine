@@ -28,7 +28,7 @@ export default async function LoginPage({
                 SkillMatch
               </span>
               <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
-                AI-Based Recruitment Recommendation Engine
+                AI-Based-Recruitment Recommendation Engine
               </span>
             </div>
           </div>
