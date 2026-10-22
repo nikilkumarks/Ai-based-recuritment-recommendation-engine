@@ -60,7 +60,7 @@ export default function RegisterPage() {
                 <BriefcaseBusiness className="h-5 w-5" />
               </div>
               <div className="space-y-0.5">
-                <h3 className="text-sm font-bold text-slate-900">Recruiter</h3>
+                <h3 className="text-sm font-bold text-slate-900">Recruiter's</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   Find candidates and make evidence-based decisions.
                 </p>
